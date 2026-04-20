@@ -8,15 +8,9 @@
 
     <div class="mb-4 rounded-lg border px-4 py-3 {{ $oauthConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700' }}">
         @if ($oauthConnected)
-            @if (! empty($hasUserPit))
-                Private Integration guardada para tu usuario. Selecciona tu subcuenta y sincroniza.
-            @elseif (! empty($usingPrivateIntegration))
-                Private Integration activa (token en servidor). Ya puedes sincronizar sin OAuth de Marketplace.
-            @else
-                OAuth conectado. Ya puedes sincronizar clientes con permisos de la app.
-            @endif
+            Flujo recomendado: 1) sincroniza subcuentas, 2) selecciona subcuenta y guarda PIT, 3) sincroniza contactos.
         @else
-            Conecta GHL con OAuth o pega tu Private Integration token (pit-...) abajo.
+            Conecta GHL con OAuth para cargar subcuentas, luego selecciona una y guarda tu PIT (pit-...).
         @endif
     </div>
 
@@ -32,11 +26,18 @@
     @endif
 
     <div class="mb-4 flex flex-wrap items-end gap-3">
+        <form method="POST" action="{{ route('clients.sync-locations') }}">
+            @csrf
+            <button type="submit" class="h-10 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
+                Sincronizar subcuentas
+            </button>
+        </form>
+
         <form id="location-form" method="GET" action="{{ route('clients') }}" class="flex items-end gap-3">
             <div>
                 <label for="location" class="block text-sm font-medium text-slate-700 mb-1">Subcuenta</label>
-                <select id="location" name="location" class="rounded-lg border-slate-300 text-sm w-72">
-                    <option value="">Todas</option>
+                <select id="location" name="location" class="rounded-lg border-slate-300 text-sm w-72" required>
+                    <option value="">Selecciona una subcuenta</option>
                     @foreach ($locations as $location)
                         <option value="{{ $location->ghl_id }}" @selected($selectedLocationId === $location->ghl_id)>
                             {{ $location->name }}
@@ -53,7 +54,7 @@
             @csrf
             <input type="hidden" name="location" value="{{ $selectedLocationId }}">
             <button type="submit" class="h-10 px-4 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium">
-                Sync GHL Ahora{{ $selectedLocationId !== '' ? ' (Subcuenta seleccionada)' : '' }}
+                Sincronizar contactos
             </button>
         </form>
         @unless (! empty($hasUserPit) || (((bool) config('services.ghl.use_private_integration')) && ((string) config('services.ghl.agency_token')) !== ''))
@@ -63,47 +64,56 @@
         @endunless
     </div>
 
-    @if (! empty($hasUserPit))
-        <form id="location-save-form" method="POST" action="{{ route('clients.location') }}" class="hidden">
+    <div class="mb-6 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-900 mb-2">Private Integration (pit-...)</h2>
+        <p class="text-sm text-slate-500 mb-4">
+            Despues de sincronizar subcuentas y elegir una subcuenta, pega tu token PIT para habilitar la sincronizacion de contactos.
+        </p>
+
+        <form id="pit-form" method="POST" action="{{ route('clients.pit') }}" class="flex flex-col gap-3 md:flex-row md:items-end">
             @csrf
-            <input type="hidden" id="location-save-input" name="location" value="">
+            <input type="hidden" id="pit-location" name="location" value="{{ $selectedLocationId }}">
+            <div class="flex-1">
+                <label for="private_integration_token" class="block text-sm font-medium text-slate-700 mb-1">Token</label>
+                <input
+                    id="private_integration_token"
+                    name="private_integration_token"
+                    type="password"
+                    autocomplete="off"
+                    class="w-full rounded-lg border-slate-300 text-sm"
+                    placeholder="pit-..."
+                />
+            </div>
+            <div class="flex-1">
+                <label for="manual_location" class="block text-sm font-medium text-slate-700 mb-1">Location ID (manual, opcional)</label>
+                <input
+                    id="manual_location"
+                    name="manual_location"
+                    type="text"
+                    autocomplete="off"
+                    class="w-full rounded-lg border-slate-300 text-sm"
+                    placeholder="Ej: ve9EPM428h8vShlRW1KT"
+                />
+            </div>
+            <button id="pit-submit" type="submit" class="h-10 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium inline-flex items-center gap-2">
+                <span id="pit-submit-label">{{ ! empty($hasUserPit) ? 'Actualizar PIT' : 'Guardar PIT' }}</span>
+                <svg id="pit-spinner" class="hidden h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+            </button>
         </form>
-    @endif
 
-    @if (empty($hasUserPit))
-        <div class="mb-6 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <h2 class="text-sm font-semibold text-slate-900 mb-2">Private Integration (pit-...)</h2>
-            <p class="text-sm text-slate-500 mb-4">
-                Pega el token generado en GHL (Settings &gt; Private Integrations). Se guarda cifrado en la base de datos de esta app.
-            </p>
-
-            <form id="pit-form" method="POST" action="{{ route('clients.pit') }}" class="flex flex-col gap-3 md:flex-row md:items-end">
-                @csrf
-                <div class="flex-1">
-                    <label for="private_integration_token" class="block text-sm font-medium text-slate-700 mb-1">Token</label>
-                    <input
-                        id="private_integration_token"
-                        name="private_integration_token"
-                        type="password"
-                        autocomplete="off"
-                        class="w-full rounded-lg border-slate-300 text-sm"
-                        placeholder="pit-..."
-                    />
-                </div>
-                <button id="pit-submit" type="submit" class="h-10 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium inline-flex items-center gap-2">
-                    <span id="pit-submit-label">Conectar</span>
-                    <svg id="pit-spinner" class="hidden h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                    </svg>
-                </button>
-            </form>
-
-            @error('private_integration_token')
-                <p class="mt-3 text-sm text-rose-600">{{ $message }}</p>
-            @enderror
-        </div>
-    @endif
+        @error('private_integration_token')
+            <p class="mt-3 text-sm text-rose-600">{{ $message }}</p>
+        @enderror
+        @error('location')
+            <p class="mt-3 text-sm text-rose-600">{{ $message }}</p>
+        @enderror
+        @error('manual_location')
+            <p class="mt-3 text-sm text-rose-600">{{ $message }}</p>
+        @enderror
+    </div>
 
     <div id="page-loading" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] items-center justify-center">
         <div class="bg-white rounded-xl px-6 py-4 shadow-lg text-sm font-medium text-slate-800">
@@ -118,10 +128,8 @@
             const pitSpinner = document.getElementById('pit-spinner');
             const pageLoading = document.getElementById('page-loading');
             const locationSelect = document.getElementById('location');
-            @if (! empty($hasUserPit))
-                const locationSaveForm = document.getElementById('location-save-form');
-                const locationSaveInput = document.getElementById('location-save-input');
-            @endif
+            const pitLocationInput = document.getElementById('pit-location');
+            const manualLocationInput = document.getElementById('manual_location');
 
             function showLoading(show) {
                 if (!pageLoading) return;
@@ -130,27 +138,25 @@
             }
 
             if (pitForm && pitSubmit && pitSpinner) {
-                pitForm.addEventListener('submit', function () {
+                pitForm.addEventListener('submit', function (event) {
+                    const selectedLocation = locationSelect ? locationSelect.value : '';
+                    const manualLocation = manualLocationInput ? manualLocationInput.value.trim() : '';
+
+                    if (!selectedLocation && !manualLocation) {
+                        event.preventDefault();
+                        alert('Selecciona una subcuenta o pega el Location ID manual.');
+                        return;
+                    }
+
+                    if (pitLocationInput) {
+                        pitLocationInput.value = selectedLocation;
+                    }
+
                     pitSubmit.setAttribute('disabled', 'disabled');
                     pitSpinner.classList.remove('hidden');
                     showLoading(true);
                 });
             }
-
-            @if (! empty($hasUserPit))
-                if (locationSelect && locationSaveForm && locationSaveInput) {
-                    locationSelect.addEventListener('change', function () {
-                        const value = locationSelect.value;
-                        if (!value) {
-                            return;
-                        }
-
-                        showLoading(true);
-                        locationSaveInput.value = value;
-                        locationSaveForm.submit();
-                    });
-                }
-            @endif
         })();
     </script>
 
@@ -180,7 +186,7 @@
                 @empty
                     <tr>
                         <td colspan="4" class="px-6 py-10 text-center text-slate-500">
-                            No hay clientes sincronizados aun. Usa "Sync GHL Ahora".
+                            No hay clientes sincronizados aun. Usa "Sincronizar contactos".
                         </td>
                     </tr>
                 @endforelse

@@ -28,33 +28,51 @@ class GhlApiService
             }
         }
 
+        $request = $this->request();
+
         $attempts = [
-            fn () => $this->request()->get('/locations/search', ['limit' => 100]),
-            fn () => $this->request()->get('/locations', ['limit' => 100]),
-            fn () => $this->request()->get('/locations'),
+            ['/locations/search', fn () => $request->get('/locations/search', ['limit' => 100])],
+            ['/locations', fn () => $request->get('/locations', ['limit' => 100])],
+            ['/locations', fn () => $request->get('/locations')],
+            ['/oauth/installedLocations', fn () => $request->get('/oauth/installedLocations')],
         ];
+        $failureReasons = [];
 
         foreach ($attempts as $attempt) {
             try {
-                $response = $attempt();
-            } catch (\Throwable) {
+                [$endpoint, $call] = $attempt;
+                $response = $call();
+            } catch (\Throwable $exception) {
+                $failureReasons[] = 'error consultando endpoint: '.$exception->getMessage();
                 continue;
             }
 
             if (! $response->successful()) {
+                $failureReasons[] = $endpoint.' devolvio status '.$response->status();
                 continue;
             }
 
             $payload = $response->json();
 
-            $locations = $payload['locations'] ?? $payload['data'] ?? [];
+            $locations = $payload['locations']
+                ?? $payload['data']
+                ?? $payload['installedLocations']
+                ?? [];
 
             if (is_array($locations) && count($locations) > 0) {
                 return $locations;
             }
+
+            // Algunos endpoints de OAuth retornan un solo objeto location.
+            $singleLocation = $payload['location'] ?? null;
+            if (is_array($singleLocation) && $singleLocation !== []) {
+                return [$singleLocation];
+            }
         }
 
-        throw new RuntimeException('No se pudieron obtener locations de GHL. Revisa scopes/token.');
+        throw new RuntimeException(
+            'No se pudieron obtener locations de GHL. '.implode(' | ', array_unique($failureReasons))
+        );
     }
 
     private function fetchLocationById(string $locationId): array

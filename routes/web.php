@@ -23,6 +23,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/in-person-payments', [InPersonPaymentsController::class, 'index'])->name('in-person-payments');
     Route::permanentRedirect('/clients-ghl', '/clients');
     Route::get('/clients', [ClientsGhlController::class, 'index'])->name('clients');
+    Route::post('/clients/sync-locations', [ClientsGhlController::class, 'syncLocations'])->name('clients.sync-locations');
     Route::post('/clients/pit', [ClientsGhlController::class, 'connectPit'])->name('clients.pit');
     Route::post('/clients/location', [ClientsGhlController::class, 'saveLocation'])->name('clients.location');
     Route::post('/clients/sync', [ClientsGhlController::class, 'sync'])->name('clients.sync');

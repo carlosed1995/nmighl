@@ -6,10 +6,12 @@ use App\Models\GhlClient;
 use App\Models\GhlLocation;
 use App\Models\GhlOauthToken;
 use App\Models\GhlUserCredential;
+use App\Services\GhlApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ClientsGhlController extends Controller
 {
@@ -49,6 +51,8 @@ class ClientsGhlController extends Controller
     {
         $data = $request->validate([
             'private_integration_token' => ['required', 'string', 'min:10', 'max:4096'],
+            'location' => ['nullable', 'string', 'max:128'],
+            'manual_location' => ['nullable', 'string', 'max:128'],
         ]);
 
         $token = trim($data['private_integration_token']);
@@ -59,14 +63,64 @@ class ClientsGhlController extends Controller
             ]);
         }
 
+        $locationId = trim((string) ($data['location'] ?? ''));
+        if ($locationId === '') {
+            $locationId = trim((string) ($data['manual_location'] ?? ''));
+        }
+
+        if ($locationId === '') {
+            throw ValidationException::withMessages([
+                'location' => 'Selecciona una subcuenta o pega el Location ID manual.',
+            ]);
+        }
+
         GhlUserCredential::query()->updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['private_integration_token' => $token]
+            [
+                'private_integration_token' => $token,
+                'default_location_id' => $locationId,
+            ]
         );
 
         return redirect()
-            ->route('clients', ['location' => $request->string('location')->toString() ?: null])
-            ->with('status', 'Private Integration guardada. Selecciona tu subcuenta y sincroniza.');
+            ->route('clients', ['location' => $locationId])
+            ->with('status', 'PIT guardado para la subcuenta seleccionada. Ya puedes sincronizar contactos.');
+    }
+
+    public function syncLocations(Request $request, GhlApiService $ghlApiService): RedirectResponse
+    {
+        try {
+            $locations = $ghlApiService->fetchLocations();
+        } catch (Throwable $exception) {
+            return redirect()
+                ->route('clients')
+                ->with('error', $exception->getMessage());
+        }
+
+        $saved = 0;
+
+        foreach ($locations as $rawLocation) {
+            $locationId = (string) ($rawLocation['id'] ?? $rawLocation['_id'] ?? '');
+
+            if ($locationId === '') {
+                continue;
+            }
+
+            GhlLocation::query()->updateOrCreate(
+                ['ghl_id' => $locationId],
+                [
+                    'name' => (string) ($rawLocation['name'] ?? 'Sin nombre'),
+                    'company_id' => $rawLocation['companyId'] ?? null,
+                    'timezone' => $rawLocation['timezone'] ?? null,
+                    'raw' => $rawLocation,
+                ]
+            );
+            $saved++;
+        }
+
+        return redirect()
+            ->route('clients')
+            ->with('status', "Subcuentas sincronizadas: {$saved}. Ahora selecciona una subcuenta y guarda tu PIT.");
     }
 
     public function saveLocation(Request $request): RedirectResponse
@@ -94,28 +148,25 @@ class ClientsGhlController extends Controller
     public function sync(Request $request): RedirectResponse
     {
         $selectedLocationId = $request->string('location')->toString();
-        $parameters = [];
-
         $credential = GhlUserCredential::query()->where('user_id', $request->user()->id)->first();
-
-        $redirectLocation = $selectedLocationId;
-
-        if ($credential) {
-            $effectiveLocation = $selectedLocationId !== ''
-                ? $selectedLocationId
-                : (string) ($credential->default_location_id ?? '');
-
-            if ($effectiveLocation === '') {
-                return redirect()
-                    ->route('clients')
-                    ->with('error', 'Selecciona una subcuenta antes de sincronizar (Private Integration).');
-            }
-
-            $parameters['--location'] = $effectiveLocation;
-            $redirectLocation = $effectiveLocation;
-        } elseif ($selectedLocationId !== '') {
-            $parameters['--location'] = $selectedLocationId;
+        if (! $credential) {
+            return redirect()
+                ->route('clients', ['location' => $selectedLocationId !== '' ? $selectedLocationId : null])
+                ->with('error', 'Primero selecciona una subcuenta y guarda tu PIT.');
         }
+
+        $effectiveLocation = $selectedLocationId !== ''
+            ? $selectedLocationId
+            : (string) ($credential->default_location_id ?? '');
+
+        if ($effectiveLocation === '') {
+            return redirect()
+                ->route('clients')
+                ->with('error', 'Selecciona una subcuenta y guarda tu PIT antes de sincronizar contactos.');
+        }
+
+        $parameters = ['--location' => $effectiveLocation];
+        $redirectLocation = $effectiveLocation;
 
         $exitCode = Artisan::call('ghl:sync-clients', $parameters);
         $output = trim(Artisan::output());
