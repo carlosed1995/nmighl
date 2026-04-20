@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ghl_clients', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('ghl_location_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('ghl_location_id');
             $table->string('ghl_contact_id');
             $table->string('name')->nullable();
             $table->string('email')->nullable();
