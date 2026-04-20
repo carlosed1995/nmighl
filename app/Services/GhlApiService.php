@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\GhlUserCredential;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -14,6 +16,18 @@ class GhlApiService
 
     public function fetchLocations(): array
     {
+        $defaultLocationId = GhlUserCredential::query()
+            ->where('user_id', Auth::id())
+            ->value('default_location_id');
+
+        if (is_string($defaultLocationId) && $defaultLocationId !== '') {
+            $location = $this->fetchLocationById($defaultLocationId);
+
+            if (is_array($location) && $location !== []) {
+                return [$location];
+            }
+        }
+
         $attempts = [
             fn () => $this->request()->get('/locations/search', ['limit' => 100]),
             fn () => $this->request()->get('/locations', ['limit' => 100]),
@@ -41,6 +55,25 @@ class GhlApiService
         }
 
         throw new RuntimeException('No se pudieron obtener locations de GHL. Revisa scopes/token.');
+    }
+
+    private function fetchLocationById(string $locationId): array
+    {
+        try {
+            $response = $this->request()->get('/locations/'.$locationId);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if (! $response->successful()) {
+            return [];
+        }
+
+        $payload = $response->json();
+
+        $location = $payload['location'] ?? $payload;
+
+        return is_array($location) ? $location : [];
     }
 
     public function fetchContactsByLocation(string $locationId): array

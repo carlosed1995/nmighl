@@ -39,6 +39,7 @@ return [
         'base_url' => env('GHL_API_BASE_URL', 'https://services.leadconnectorhq.com'),
         'oauth_base_url' => env('GHL_OAUTH_BASE_URL', 'https://marketplace.gohighlevel.com'),
         'agency_token' => env('GHL_AGENCY_TOKEN'),
+        'use_private_integration' => env('GHL_USE_PRIVATE_INTEGRATION', false),
         'client_id' => env('GHL_CLIENT_ID'),
         'client_secret' => env('GHL_CLIENT_SECRET'),
         'redirect_uri' => env('GHL_REDIRECT_URI'),

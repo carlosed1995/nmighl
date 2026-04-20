@@ -27,19 +27,19 @@ class GhlOAuthController extends Controller
         $code = (string) $request->query('code', '');
 
         if (! $this->ghlOAuthService->validateState(is_string($state) ? $state : null)) {
-            return redirect()->route('clients-ghl')->with('error', 'OAuth state invalido.');
+            return redirect()->route('clients')->with('error', 'OAuth state invalido.');
         }
 
         if ($code === '') {
-            return redirect()->route('clients-ghl')->with('error', 'No se recibio authorization code.');
+            return redirect()->route('clients')->with('error', 'No se recibio authorization code.');
         }
 
         try {
             $this->ghlOAuthService->exchangeCodeForToken($code);
         } catch (RuntimeException $exception) {
-            return redirect()->route('clients-ghl')->with('error', $exception->getMessage());
+            return redirect()->route('clients')->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('clients-ghl')->with('status', 'OAuth conectado correctamente. Ya puedes sincronizar.');
+        return redirect()->route('clients')->with('status', 'OAuth conectado correctamente. Ya puedes sincronizar.');
     }
 }

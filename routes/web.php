@@ -21,8 +21,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/merchant-management', [DashboardController::class, 'index'])->name('merchant-management');
     Route::get('/online-payments', [OnlinePaymentsController::class, 'index'])->name('online-payments');
     Route::get('/in-person-payments', [InPersonPaymentsController::class, 'index'])->name('in-person-payments');
-    Route::get('/clients-ghl', [ClientsGhlController::class, 'index'])->name('clients-ghl');
-    Route::post('/clients-ghl/sync', [ClientsGhlController::class, 'sync'])->name('clients-ghl.sync');
+    Route::permanentRedirect('/clients-ghl', '/clients');
+    Route::get('/clients', [ClientsGhlController::class, 'index'])->name('clients');
+    Route::post('/clients/pit', [ClientsGhlController::class, 'connectPit'])->name('clients.pit');
+    Route::post('/clients/location', [ClientsGhlController::class, 'saveLocation'])->name('clients.location');
+    Route::post('/clients/sync', [ClientsGhlController::class, 'sync'])->name('clients.sync');
     Route::get('/sales-reps', [SalesRepsController::class, 'index'])->name('sales-reps');
     Route::get('/reporting', [ReportingController::class, 'index'])->name('reporting');
     Route::get('/account-settings', [AccountSettingsController::class, 'index'])->name('account-settings');

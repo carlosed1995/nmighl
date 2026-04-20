@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\GhlOauthToken;
+use App\Models\GhlUserCredential;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -53,6 +55,24 @@ class GhlOAuthService
 
     public function getAccessToken(): string
     {
+        $userPit = GhlUserCredential::query()
+            ->where('user_id', Auth::id())
+            ->value('private_integration_token');
+
+        if (is_string($userPit) && $userPit !== '') {
+            return $userPit;
+        }
+
+        if (config('services.ghl.use_private_integration')) {
+            $pit = (string) config('services.ghl.agency_token');
+
+            if ($pit === '') {
+                throw new RuntimeException('GHL_USE_PRIVATE_INTEGRATION=true pero falta GHL_AGENCY_TOKEN (PIT).');
+            }
+
+            return $pit;
+        }
+
         $token = GhlOauthToken::query()->latestValid()->first();
 
         if (! $token) {

@@ -45,8 +45,8 @@
                 <i class="fa-solid fa-mobile-screen w-5 text-center {{ request()->routeIs('in-person-payments') ? 'text-teal-600' : 'text-slate-400' }}"></i>
                 <span class="text-sm">In-Person Payments</span>
             </a>
-            <a href="{{ route('clients-ghl') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('clients-ghl') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-users-gear w-5 text-center {{ request()->routeIs('clients-ghl') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+            <a href="{{ route('clients') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('clients') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                <i class="fa-solid fa-users-gear w-5 text-center {{ request()->routeIs('clients') ? 'text-teal-600' : 'text-slate-400' }}"></i>
                 <span class="text-sm">Clients-GHL</span>
             </a>
 
