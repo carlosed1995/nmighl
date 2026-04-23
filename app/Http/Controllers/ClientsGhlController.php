@@ -59,7 +59,7 @@ class ClientsGhlController extends Controller
 
         if (! str_starts_with($token, 'pit-')) {
             throw ValidationException::withMessages([
-                'private_integration_token' => 'El token debe comenzar con pit-.',
+                'private_integration_token' => 'The token must start with pit-.',
             ]);
         }
 
@@ -70,7 +70,7 @@ class ClientsGhlController extends Controller
 
         if ($locationId === '') {
             throw ValidationException::withMessages([
-                'location' => 'Selecciona una subcuenta o pega el Location ID manual.',
+                'location' => 'Select a sub-account or paste the manual Location ID.',
             ]);
         }
 
@@ -84,7 +84,7 @@ class ClientsGhlController extends Controller
 
         return redirect()
             ->route('clients', ['location' => $locationId])
-            ->with('status', 'PIT guardado para la subcuenta seleccionada. Ya puedes sincronizar contactos.');
+            ->with('status', 'PIT saved for the selected sub-account. You can now sync contacts.');
     }
 
     public function syncLocations(Request $request, GhlApiService $ghlApiService): RedirectResponse
@@ -120,7 +120,7 @@ class ClientsGhlController extends Controller
 
         return redirect()
             ->route('clients')
-            ->with('status', "Subcuentas sincronizadas: {$saved}. Ahora selecciona una subcuenta y guarda tu PIT.");
+            ->with('status', "Sub-accounts synced: {$saved}. Now select a sub-account and save your PIT.");
     }
 
     public function saveLocation(Request $request): RedirectResponse
@@ -134,7 +134,7 @@ class ClientsGhlController extends Controller
         if (! $credential) {
             return redirect()
                 ->route('clients')
-                ->with('error', 'Primero pega y guarda tu Private Integration token.');
+                ->with('error', 'First paste and save your Private Integration token.');
         }
 
         $credential->default_location_id = trim($data['location']);
@@ -142,7 +142,7 @@ class ClientsGhlController extends Controller
 
         return redirect()
             ->route('clients', ['location' => $credential->default_location_id])
-            ->with('status', 'Subcuenta guardada para Private Integration.');
+            ->with('status', 'Sub-account saved for Private Integration.');
     }
 
     public function sync(Request $request): RedirectResponse
@@ -152,7 +152,7 @@ class ClientsGhlController extends Controller
         if (! $credential) {
             return redirect()
                 ->route('clients', ['location' => $selectedLocationId !== '' ? $selectedLocationId : null])
-                ->with('error', 'Primero selecciona una subcuenta y guarda tu PIT.');
+                ->with('error', 'First select a sub-account and save your PIT.');
         }
 
         $effectiveLocation = $selectedLocationId !== ''
@@ -162,7 +162,7 @@ class ClientsGhlController extends Controller
         if ($effectiveLocation === '') {
             return redirect()
                 ->route('clients')
-                ->with('error', 'Selecciona una subcuenta y guarda tu PIT antes de sincronizar contactos.');
+                ->with('error', 'Select a sub-account and save your PIT before syncing contacts.');
         }
 
         $parameters = ['--location' => $effectiveLocation];
@@ -174,11 +174,11 @@ class ClientsGhlController extends Controller
         if ($exitCode !== 0) {
             return redirect()
                 ->route('clients', ['location' => $redirectLocation !== '' ? $redirectLocation : null])
-                ->with('error', $output !== '' ? $output : 'No se pudo sincronizar con GHL.');
+                ->with('error', $output !== '' ? $output : 'Failed to sync with GHL.');
         }
 
         return redirect()
             ->route('clients', ['location' => $redirectLocation !== '' ? $redirectLocation : null])
-            ->with('status', $output !== '' ? $output : 'Sincronizacion ejecutada. Revisa la tabla.');
+            ->with('status', $output !== '' ? $output : 'Sync completed. Check the table.');
     }
 }

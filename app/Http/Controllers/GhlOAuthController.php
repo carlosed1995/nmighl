@@ -27,11 +27,11 @@ class GhlOAuthController extends Controller
         $code = (string) $request->query('code', '');
 
         if (! $this->ghlOAuthService->validateState(is_string($state) ? $state : null)) {
-            return redirect()->route('clients')->with('error', 'OAuth state invalido.');
+            return redirect()->route('clients')->with('error', 'Invalid OAuth state.');
         }
 
         if ($code === '') {
-            return redirect()->route('clients')->with('error', 'No se recibio authorization code.');
+            return redirect()->route('clients')->with('error', 'Authorization code was not received.');
         }
 
         try {
@@ -40,6 +40,6 @@ class GhlOAuthController extends Controller
             return redirect()->route('clients')->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('clients')->with('status', 'OAuth conectado correctamente. Ya puedes sincronizar.');
+        return redirect()->route('clients')->with('status', 'OAuth connected successfully. You can now sync.');
     }
 }

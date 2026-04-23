@@ -46,4 +46,10 @@ return [
         'scopes' => env('GHL_SCOPES', 'locations.readonly contacts.readonly'),
     ],
 
+    'nmi' => [
+        'api_url' => env('NMI_API_URL', 'https://secure.networkmerchants.com/api/transact.php'),
+        'security_key' => env('NMI_SECURITY_KEY'),
+        'webhook_signing_key' => env('NMI_WEBHOOK_SIGNING_KEY'),
+    ],
+
 ];
