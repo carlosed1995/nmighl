@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GhlOauthToken;
 use App\Models\GhlUserCredential;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -19,7 +20,7 @@ class GhlOAuthService
         $baseUrl = rtrim((string) config('services.ghl.oauth_base_url'), '/');
 
         if ($clientId === '' || $redirectUri === '') {
-            throw new RuntimeException('Falta GHL_CLIENT_ID o GHL_REDIRECT_URI en .env');
+            throw new RuntimeException('Missing GHL_CLIENT_ID or GHL_REDIRECT_URI in .env');
         }
 
         $query = http_build_query([
@@ -47,7 +48,7 @@ class GhlOAuthService
             ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException('No se pudo intercambiar code por token (status '.$response->status().').');
+            throw new RuntimeException('Failed to exchange code for token (status '.$response->status().').');
         }
 
         return $this->storeTokenPayload($response->json());
@@ -67,13 +68,13 @@ class GhlOAuthService
             $pit = (string) config('services.ghl.agency_token');
 
             if ($pit === '') {
-                throw new RuntimeException('GHL_USE_PRIVATE_INTEGRATION=true pero falta GHL_AGENCY_TOKEN (PIT).');
+                throw new RuntimeException('GHL_USE_PRIVATE_INTEGRATION=true but GHL_AGENCY_TOKEN (PIT) is missing.');
             }
 
             return $pit;
         }
 
-        // Fallback automatico: si existe PIT en servidor, usarlo aun con OAuth apagado.
+        // Automatic fallback: if a server PIT exists, use it even when OAuth is disabled.
         $serverPit = (string) config('services.ghl.agency_token');
         if ($serverPit !== '') {
             return $serverPit;
@@ -82,7 +83,7 @@ class GhlOAuthService
         $token = GhlOauthToken::query()->latestValid()->first();
 
         if (! $token) {
-            throw new RuntimeException('No hay token OAuth guardado. Primero conecta la app.');
+            throw new RuntimeException('No OAuth token saved. Connect the app first.');
         }
 
         if ($token->isExpiringSoon() && $token->refresh_token) {
@@ -95,6 +96,7 @@ class GhlOAuthService
     public function makeAndStoreState(): string
     {
         $state = Str::random(40);
+        Cache::put($this->stateCacheKey($state), true, now()->addMinutes(10));
         session(['ghl_oauth_state' => $state]);
 
         return $state;
@@ -102,10 +104,27 @@ class GhlOAuthService
 
     public function validateState(?string $state): bool
     {
+        if (! is_string($state) || $state === '') {
+            session()->forget('ghl_oauth_state');
+
+            return false;
+        }
+
+        if (Cache::pull($this->stateCacheKey($state)) === true) {
+            session()->forget('ghl_oauth_state');
+
+            return true;
+        }
+
         $expected = session('ghl_oauth_state');
         session()->forget('ghl_oauth_state');
 
-        return is_string($state) && is_string($expected) && hash_equals($expected, $state);
+        return is_string($expected) && hash_equals($expected, $state);
+    }
+
+    private function stateCacheKey(string $state): string
+    {
+        return 'ghl_oauth_state:'.hash('sha256', $state);
     }
 
     private function refreshToken(GhlOauthToken $token): GhlOauthToken

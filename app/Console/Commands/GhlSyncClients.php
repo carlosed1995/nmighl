@@ -15,14 +15,14 @@ class GhlSyncClients extends Command
      *
      * @var string
      */
-    protected $signature = 'ghl:sync-clients {--location= : GHL location ID para sync puntual}';
+    protected $signature = 'ghl:sync-clients {--location= : GHL location ID for targeted sync}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Sincroniza subcuentas y clientes de GoHighLevel';
+    protected $description = 'Sync sub-accounts and clients from GoHighLevel';
 
     /**
      * Execute the console command.
@@ -58,7 +58,7 @@ class GhlSyncClients extends Command
             $location = GhlLocation::updateOrCreate(
                 ['ghl_id' => $locationId],
                 [
-                    'name' => (string) ($rawLocation['name'] ?? 'Sin nombre'),
+                        'name' => (string) ($rawLocation['name'] ?? 'No name'),
                     'company_id' => $rawLocation['companyId'] ?? null,
                     'timezone' => $rawLocation['timezone'] ?? null,
                     'raw' => $rawLocation,
@@ -68,7 +68,7 @@ class GhlSyncClients extends Command
             try {
                 $contacts = $ghlApiService->fetchContactsByLocation($locationId);
             } catch (Throwable $exception) {
-                $this->warn("Location {$location->name}: sin acceso a contactos ({$exception->getMessage()}).");
+                $this->warn("Location {$location->name}: no access to contacts ({$exception->getMessage()}).");
                 continue;
             }
 
@@ -101,16 +101,16 @@ class GhlSyncClients extends Command
                 $totalClients++;
             }
 
-            $this->info("Location {$location->name}: ".count($contacts).' clientes sincronizados.');
+            $this->info("Location {$location->name}: ".count($contacts).' clients synced.');
         }
 
         if ($requestedLocation !== '' && $processedLocations === 0) {
-            $this->error('No se encontro la subcuenta seleccionada en GHL: '.$requestedLocation);
+            $this->error('Selected sub-account not found in GHL: '.$requestedLocation);
 
             return self::FAILURE;
         }
 
-        $this->info('Sync finalizado. Total clientes procesados: '.$totalClients);
+        $this->info('Sync completed. Total processed clients: '.$totalClients);
 
         return self::SUCCESS;
     }

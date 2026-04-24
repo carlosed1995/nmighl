@@ -44,6 +44,13 @@ return [
         'client_secret' => env('GHL_CLIENT_SECRET'),
         'redirect_uri' => env('GHL_REDIRECT_URI'),
         'scopes' => env('GHL_SCOPES', 'locations.readonly contacts.readonly'),
+        'bridge_webhook_secret' => env('GHL_BRIDGE_WEBHOOK_SECRET'),
+    ],
+
+    'nmi' => [
+        'api_url' => env('NMI_API_URL', 'https://secure.networkmerchants.com/api/transact.php'),
+        'security_key' => env('NMI_SECURITY_KEY'),
+        'webhook_signing_key' => env('NMI_WEBHOOK_SIGNING_KEY'),
     ],
 
 ];

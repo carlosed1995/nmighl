@@ -4,13 +4,13 @@
 
 @section('content')
     <h1 class="text-3xl font-bold text-slate-900 mb-2">Clients-GHL</h1>
-    <p class="text-slate-500 mb-6">Subcuentas y clientes sincronizados desde GoHighLevel.</p>
+    <p class="text-slate-500 mb-6">Sub-accounts and clients synced from GoHighLevel.</p>
 
     <div class="mb-4 rounded-lg border px-4 py-3 {{ $oauthConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700' }}">
         @if ($oauthConnected)
-            Flujo recomendado: 1) sincroniza subcuentas, 2) selecciona subcuenta y guarda PIT, 3) sincroniza contactos.
+            Recommended flow: 1) sync sub-accounts, 2) select a sub-account and save PIT, 3) sync contacts.
         @else
-            Conecta GHL con OAuth para cargar subcuentas, luego selecciona una y guarda tu PIT (pit-...).
+            Connect GHL with OAuth to load sub-accounts, then select one and save your PIT (pit-...).
         @endif
     </div>
 
@@ -29,15 +29,15 @@
         <form method="POST" action="{{ route('clients.sync-locations') }}">
             @csrf
             <button type="submit" class="h-10 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
-                Sincronizar subcuentas
+                Sync sub-accounts
             </button>
         </form>
 
         <form id="location-form" method="GET" action="{{ route('clients') }}" class="flex items-end gap-3">
             <div>
-                <label for="location" class="block text-sm font-medium text-slate-700 mb-1">Subcuenta</label>
+                <label for="location" class="block text-sm font-medium text-slate-700 mb-1">Sub-account</label>
                 <select id="location" name="location" class="rounded-lg border-slate-300 text-sm w-72" required>
-                    <option value="">Selecciona una subcuenta</option>
+                    <option value="">Select a sub-account</option>
                     @foreach ($locations as $location)
                         <option value="{{ $location->ghl_id }}" @selected($selectedLocationId === $location->ghl_id)>
                             {{ $location->name }}
@@ -46,7 +46,7 @@
                 </select>
             </div>
             <button type="submit" class="h-10 px-4 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-medium">
-                Filtrar
+                Filter
             </button>
         </form>
 
@@ -54,12 +54,12 @@
             @csrf
             <input type="hidden" name="location" value="{{ $selectedLocationId }}">
             <button type="submit" class="h-10 px-4 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium">
-                Sincronizar contactos
+                Sync contacts
             </button>
         </form>
         @unless (! empty($hasUserPit) || (((bool) config('services.ghl.use_private_integration')) && ((string) config('services.ghl.agency_token')) !== ''))
             <a href="{{ route('oauth.connect') }}" class="h-10 inline-flex items-center px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
-                Conectar OAuth
+                Connect OAuth
             </a>
         @endunless
     </div>
@@ -67,7 +67,7 @@
     <div class="mb-6 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         <h2 class="text-sm font-semibold text-slate-900 mb-2">Private Integration (pit-...)</h2>
         <p class="text-sm text-slate-500 mb-4">
-            Despues de sincronizar subcuentas y elegir una subcuenta, pega tu token PIT para habilitar la sincronizacion de contactos.
+            After syncing sub-accounts and selecting one, paste your PIT token to enable contact sync.
         </p>
 
         <form id="pit-form" method="POST" action="{{ route('clients.pit') }}" class="flex flex-col gap-3 md:flex-row md:items-end">
@@ -85,18 +85,18 @@
                 />
             </div>
             <div class="flex-1">
-                <label for="manual_location" class="block text-sm font-medium text-slate-700 mb-1">Location ID (manual, opcional)</label>
+                <label for="manual_location" class="block text-sm font-medium text-slate-700 mb-1">Location ID (manual, optional)</label>
                 <input
                     id="manual_location"
                     name="manual_location"
                     type="text"
                     autocomplete="off"
                     class="w-full rounded-lg border-slate-300 text-sm"
-                    placeholder="Ej: ve9EPM428h8vShlRW1KT"
+                    placeholder="Example: ve9EPM428h8vShlRW1KT"
                 />
             </div>
             <button id="pit-submit" type="submit" class="h-10 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium inline-flex items-center gap-2">
-                <span id="pit-submit-label">{{ ! empty($hasUserPit) ? 'Actualizar PIT' : 'Guardar PIT' }}</span>
+                <span id="pit-submit-label">{{ ! empty($hasUserPit) ? 'Update PIT' : 'Save PIT' }}</span>
                 <svg id="pit-spinner" class="hidden h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -117,7 +117,7 @@
 
     <div id="page-loading" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] items-center justify-center">
         <div class="bg-white rounded-xl px-6 py-4 shadow-lg text-sm font-medium text-slate-800">
-            Conectando con GHL...
+            Connecting to GHL...
         </div>
     </div>
 
@@ -144,7 +144,7 @@
 
                     if (!selectedLocation && !manualLocation) {
                         event.preventDefault();
-                        alert('Selecciona una subcuenta o pega el Location ID manual.');
+                        alert('Select a sub-account or paste the manual Location ID.');
                         return;
                     }
 
@@ -172,13 +172,13 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Name</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Phone</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Subcuenta</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Sub-account</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 bg-white text-sm">
                 @forelse ($clients as $client)
                     <tr>
-                        <td class="px-6 py-4 text-slate-900 font-medium">{{ $client->name ?? 'Sin nombre' }}</td>
+                        <td class="px-6 py-4 text-slate-900 font-medium">{{ $client->name ?? 'No name' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $client->email ?? '-' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $client->phone ?? '-' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $client->location?->name ?? '-' }}</td>
@@ -186,7 +186,7 @@
                 @empty
                     <tr>
                         <td colspan="4" class="px-6 py-10 text-center text-slate-500">
-                            No hay clientes sincronizados aun. Usa "Sincronizar contactos".
+                            No synced clients yet. Use "Sync contacts".
                         </td>
                     </tr>
                 @endforelse

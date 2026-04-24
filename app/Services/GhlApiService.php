@@ -43,12 +43,12 @@ class GhlApiService
                 [$endpoint, $call] = $attempt;
                 $response = $call();
             } catch (\Throwable $exception) {
-                $failureReasons[] = 'error consultando endpoint: '.$exception->getMessage();
+                $failureReasons[] = 'error requesting endpoint: '.$exception->getMessage();
                 continue;
             }
 
             if (! $response->successful()) {
-                $failureReasons[] = $endpoint.' devolvio status '.$response->status();
+                $failureReasons[] = $endpoint.' returned status '.$response->status();
                 continue;
             }
 
@@ -63,7 +63,7 @@ class GhlApiService
                 return $locations;
             }
 
-            // Algunos endpoints de OAuth retornan un solo objeto location.
+            // Some OAuth endpoints return a single location object.
             $singleLocation = $payload['location'] ?? null;
             if (is_array($singleLocation) && $singleLocation !== []) {
                 return [$singleLocation];
@@ -71,7 +71,7 @@ class GhlApiService
         }
 
         throw new RuntimeException(
-            'No se pudieron obtener locations de GHL. '.implode(' | ', array_unique($failureReasons))
+            'Unable to fetch GHL locations. '.implode(' | ', array_unique($failureReasons))
         );
     }
 
@@ -154,11 +154,26 @@ class GhlApiService
 
         if ($firstPageFailed) {
             throw new RuntimeException(
-                'sin acceso a contactos para location '.$locationId.' ('.implode(', ', array_unique($failureReasons)).')'
+                'no access to contacts for location '.$locationId.' ('.implode(', ', array_unique($failureReasons)).')'
             );
         }
 
         return $contacts;
+    }
+
+    public function recordOrderPayment(string $orderId, array $payload = []): void
+    {
+        $requestPayload = array_filter([
+            'amount' => $payload['amount'] ?? null,
+            'transactionId' => $payload['transaction_id'] ?? null,
+            'note' => $payload['note'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $response = $this->request()->post('/payments/orders/'.$orderId.'/record-payment', $requestPayload);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Failed to record payment in GHL order '.$orderId.' (status '.$response->status().').');
+        }
     }
 
     private function request(): PendingRequest
@@ -172,7 +187,7 @@ class GhlApiService
         }
 
         if ($token === '') {
-            throw new RuntimeException('Falta token GHL. Conecta OAuth o define GHL_AGENCY_TOKEN.');
+            throw new RuntimeException('Missing GHL token. Connect OAuth or define GHL_AGENCY_TOKEN.');
         }
 
         return Http::baseUrl((string) config('services.ghl.base_url'))
