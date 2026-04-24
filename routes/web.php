@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnlinePaymentsController;
 use App\Http\Controllers\InPersonPaymentsController;
 use App\Http\Controllers\ClientsGhlController;
+use App\Http\Controllers\GhlBridgeWebhookController;
 use App\Http\Controllers\GhlOAuthController;
 use App\Http\Controllers\NmiWebhookController;
 use App\Http\Controllers\SalesRepsController;
@@ -45,5 +46,8 @@ Route::middleware('auth')->group(function () {
 Route::post('/webhooks/nmi', NmiWebhookController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('webhooks.nmi');
+Route::post('/webhooks/ghl/orders', GhlBridgeWebhookController::class)
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('webhooks.ghl.orders');
 
 require __DIR__.'/auth.php';

@@ -5,10 +5,15 @@ namespace App\Services;
 use App\Models\NmiPaymentOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class NmiGatewayService
 {
+    public function __construct(private GhlApiService $ghlApiService)
+    {
+    }
+
     public function chargeOrder(NmiPaymentOrder $order, array $paymentData): NmiPaymentOrder
     {
         $securityKey = (string) config('services.nmi.security_key');
@@ -23,7 +28,7 @@ class NmiGatewayService
             'type' => 'sale',
             'amount' => number_format((float) $order->amount, 2, '.', ''),
             'currency' => $order->currency ?: 'USD',
-            'orderid' => 'order-'.$order->id,
+            'orderid' => $order->nmi_order_id ?: 'order-'.$order->id,
             'order_description' => $order->description ?: 'GHL order',
             'customer_receipt' => 'false',
         ];
@@ -82,7 +87,7 @@ class NmiGatewayService
         return $order;
     }
 
-    public function handleWebhook(Request $request): void
+    public function handleWebhook(Request $request): ?NmiPaymentOrder
     {
         $payload = $request->all();
         $this->assertValidSignature($request);
@@ -94,17 +99,31 @@ class NmiGatewayService
             ?? ''
         );
 
-        if ($transactionId === '') {
-            return;
+        $orderId = (string) (
+            data_get($payload, 'transaction.orderid')
+            ?? data_get($payload, 'data.transaction.orderid')
+            ?? data_get($payload, 'orderid')
+            ?? ''
+        );
+
+        $order = null;
+        if ($transactionId !== '') {
+            $order = NmiPaymentOrder::query()
+                ->where('nmi_transaction_id', $transactionId)
+                ->latest()
+                ->first();
         }
 
-        $order = NmiPaymentOrder::query()
-            ->where('nmi_transaction_id', $transactionId)
-            ->latest()
-            ->first();
+        if (! $order && $orderId !== '') {
+            $order = NmiPaymentOrder::query()
+                ->where('nmi_order_id', $orderId)
+                ->orWhere('ghl_order_id', str_replace('ghl-order-', '', $orderId))
+                ->latest()
+                ->first();
+        }
 
         if (! $order) {
-            return;
+            return null;
         }
 
         $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
@@ -122,9 +141,17 @@ class NmiGatewayService
 
         $order->fill([
             'status' => $status,
+            'nmi_transaction_id' => $transactionId !== '' ? $transactionId : $order->nmi_transaction_id,
+            'nmi_order_id' => $orderId !== '' ? $orderId : $order->nmi_order_id,
             'webhook_payload' => $payload,
         ]);
         $order->save();
+
+        if ($status === NmiPaymentOrder::STATUS_APPROVED) {
+            $this->syncApprovedPaymentToGhl($order);
+        }
+
+        return $order;
     }
 
     private function assertValidSignature(Request $request): void
@@ -134,12 +161,23 @@ class NmiGatewayService
             return;
         }
 
-        $incoming = (string) ($request->header('X-Webhook-Signature') ?? '');
+        $incoming = (string) ($request->header('Webhook-Signature') ?? $request->header('X-Webhook-Signature') ?? '');
         if ($incoming === '') {
             return;
         }
 
-        $expected = hash_hmac('sha256', (string) $request->getContent(), $signingKey);
+        $rawBody = (string) $request->getContent();
+        if (preg_match('/t=(.*),s=(.*)/', $incoming, $matches) === 1) {
+            $expected = hash_hmac('sha256', $matches[1].'.'.$rawBody, $signingKey);
+            if (! hash_equals($expected, $matches[2])) {
+                throw new RuntimeException('Invalid NMI webhook signature.');
+            }
+
+            return;
+        }
+
+        // Backward-compatible fallback for simple signature formats.
+        $expected = hash_hmac('sha256', $rawBody, $signingKey);
         if (! hash_equals($expected, $incoming)) {
             throw new RuntimeException('Invalid NMI webhook signature.');
         }
@@ -159,5 +197,36 @@ class NmiGatewayService
         }
 
         return NmiPaymentOrder::STATUS_ERROR;
+    }
+
+    private function syncApprovedPaymentToGhl(NmiPaymentOrder $order): void
+    {
+        if (! $order->ghl_order_id) {
+            return;
+        }
+
+        if ($order->synced_to_ghl_at) {
+            return;
+        }
+
+        try {
+            $this->ghlApiService->recordOrderPayment($order->ghl_order_id, [
+                'amount' => $order->amount,
+                'transaction_id' => $order->nmi_transaction_id,
+                'note' => 'Recorded from NMI bridge (Laravel).',
+            ]);
+
+            $order->synced_to_ghl_at = now();
+            $order->ghl_sync_error = null;
+            $order->save();
+        } catch (\Throwable $exception) {
+            $order->ghl_sync_error = $exception->getMessage();
+            $order->save();
+            Log::warning('Failed syncing NMI payment to GHL', [
+                'order_id' => $order->id,
+                'ghl_order_id' => $order->ghl_order_id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

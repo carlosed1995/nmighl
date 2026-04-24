@@ -19,13 +19,17 @@ class NmiPaymentOrder extends Model
         'ghl_client_id',
         'ghl_contact_id',
         'ghl_location_id',
+        'ghl_order_id',
         'amount',
         'currency',
         'description',
+        'source',
         'status',
         'nmi_transaction_id',
         'nmi_order_id',
         'response_message',
+        'synced_to_ghl_at',
+        'ghl_sync_error',
         'gateway_payload',
         'webhook_payload',
     ];
@@ -34,6 +38,7 @@ class NmiPaymentOrder extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'synced_to_ghl_at' => 'datetime',
             'gateway_payload' => 'array',
             'webhook_payload' => 'array',
         ];

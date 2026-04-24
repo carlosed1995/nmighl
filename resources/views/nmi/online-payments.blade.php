@@ -45,6 +45,10 @@
                     <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Description</label>
                     <input id="description" name="description" class="w-full rounded-lg border-slate-300 text-sm" placeholder="Invoice from GHL contact" />
                 </div>
+                <div>
+                    <label for="ghl_order_id" class="block text-sm font-medium text-slate-700 mb-1">GHL Order ID (optional bridge)</label>
+                    <input id="ghl_order_id" name="ghl_order_id" class="w-full rounded-lg border-slate-300 text-sm" placeholder="If set, bridge will sync payment to this GHL order" />
+                </div>
                 <button type="submit" class="h-10 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
                     Create order
                 </button>
@@ -91,6 +95,7 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Client</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Amount</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">GHL Order</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Transaction ID</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Message</th>
                 </tr>
@@ -111,12 +116,20 @@
                                 {{ strtoupper($order->status) }}
                             </span>
                         </td>
+                        <td class="px-6 py-4 text-slate-600">
+                            {{ $order->ghl_order_id ?? '-' }}
+                            @if ($order->synced_to_ghl_at)
+                                <span class="ml-1 text-emerald-600 text-xs">synced</span>
+                            @elseif ($order->ghl_sync_error)
+                                <span class="ml-1 text-rose-600 text-xs">sync error</span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 text-slate-600">{{ $order->nmi_transaction_id ?? '-' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $order->response_message ?? '-' }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-slate-500">
+                        <td colspan="7" class="px-6 py-8 text-center text-slate-500">
                             No orders yet. Create your first order and process payment.
                         </td>
                     </tr>

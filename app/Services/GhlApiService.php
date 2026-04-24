@@ -161,6 +161,21 @@ class GhlApiService
         return $contacts;
     }
 
+    public function recordOrderPayment(string $orderId, array $payload = []): void
+    {
+        $requestPayload = array_filter([
+            'amount' => $payload['amount'] ?? null,
+            'transactionId' => $payload['transaction_id'] ?? null,
+            'note' => $payload['note'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $response = $this->request()->post('/payments/orders/'.$orderId.'/record-payment', $requestPayload);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Failed to record payment in GHL order '.$orderId.' (status '.$response->status().').');
+        }
+    }
+
     private function request(): PendingRequest
     {
         $token = '';

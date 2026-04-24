@@ -26,6 +26,7 @@ class OnlinePaymentsController extends Controller
             'amount' => ['required', 'numeric', 'min:0.5'],
             'currency' => ['nullable', 'string', 'size:3'],
             'description' => ['nullable', 'string', 'max:255'],
+            'ghl_order_id' => ['nullable', 'string', 'max:128'],
         ]);
 
         $client = GhlClient::query()->with('location')->findOrFail($data['ghl_client_id']);
@@ -42,7 +43,10 @@ class OnlinePaymentsController extends Controller
             'amount' => $data['amount'],
             'currency' => strtoupper((string) ($data['currency'] ?? 'USD')),
             'description' => (string) ($data['description'] ?? 'GHL order'),
+            'ghl_order_id' => (string) ($data['ghl_order_id'] ?? ''),
+            'source' => 'manual',
             'status' => NmiPaymentOrder::STATUS_PENDING,
+            'nmi_order_id' => ! empty($data['ghl_order_id']) ? 'ghl-order-'.$data['ghl_order_id'] : null,
         ]);
 
         return redirect()->route('online-payments')->with('status', 'Order created. You can now process payment with NMI.');

@@ -44,6 +44,7 @@ return [
         'client_secret' => env('GHL_CLIENT_SECRET'),
         'redirect_uri' => env('GHL_REDIRECT_URI'),
         'scopes' => env('GHL_SCOPES', 'locations.readonly contacts.readonly'),
+        'bridge_webhook_secret' => env('GHL_BRIDGE_WEBHOOK_SECRET'),
     ],
 
     'nmi' => [
