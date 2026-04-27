@@ -55,7 +55,7 @@ class GhlBridgeWebhookController extends Controller
             ?? data_get($normalizedPayload, 'invoice.currency')
             ?? data_get($normalizedPayload, 'invoice._data.currency')
             ?? 'USD'
-        );
+        ));
         $description = (string) (
             data_get($normalizedPayload, 'description')
             ?? data_get($normalizedPayload, 'customData.description')
