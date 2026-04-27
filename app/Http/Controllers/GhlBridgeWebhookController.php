@@ -14,39 +14,53 @@ class GhlBridgeWebhookController extends Controller
         $this->assertWebhookSecret($request);
 
         $payload = $request->all();
+        $normalizedPayload = (array) (data_get($payload, 'body') ?? $payload);
 
         $orderId = (string) (
-            data_get($payload, 'orderId')
-            ?? data_get($payload, 'order.id')
-            ?? data_get($payload, 'invoiceId')
-            ?? data_get($payload, 'invoice.id')
+            data_get($normalizedPayload, 'orderId')
+            ?? data_get($normalizedPayload, 'customData.orderId')
+            ?? data_get($normalizedPayload, 'order.id')
+            ?? data_get($normalizedPayload, 'invoiceId')
+            ?? data_get($normalizedPayload, 'invoice.id')
+            ?? data_get($normalizedPayload, 'invoice._data.invoiceNumber')
             ?? ''
         );
         $contactId = (string) (
-            data_get($payload, 'contactId')
-            ?? data_get($payload, 'contact.id')
+            data_get($normalizedPayload, 'contactId')
+            ?? data_get($normalizedPayload, 'customData.contactId')
+            ?? data_get($normalizedPayload, 'contact_id')
+            ?? data_get($normalizedPayload, 'contact.id')
             ?? ''
         );
         $locationId = (string) (
-            data_get($payload, 'locationId')
-            ?? data_get($payload, 'location.id')
+            data_get($normalizedPayload, 'locationId')
+            ?? data_get($normalizedPayload, 'customData.locationId')
+            ?? data_get($normalizedPayload, 'location_id')
+            ?? data_get($normalizedPayload, 'location.id')
             ?? ''
         );
 
-        $amount = (float) (
-            data_get($payload, 'amount')
-            ?? data_get($payload, 'order.amount')
-            ?? data_get($payload, 'invoice.amount')
-            ?? 0
-        );
+        $rawAmount = data_get($normalizedPayload, 'amount')
+            ?? data_get($normalizedPayload, 'customData.amount')
+            ?? data_get($normalizedPayload, 'order.amount')
+            ?? data_get($normalizedPayload, 'invoice.amount')
+            ?? data_get($normalizedPayload, 'invoice._data.total')
+            ?? 0;
+        $amount = (float) preg_replace('/[^\d.\-]/', '', (string) $rawAmount);
+
         $currency = strtoupper((string) (
-            data_get($payload, 'currency')
-            ?? data_get($payload, 'order.currency')
+            data_get($normalizedPayload, 'currency')
+            ?? data_get($normalizedPayload, 'customData.currency')
+            ?? data_get($normalizedPayload, 'order.currency')
+            ?? data_get($normalizedPayload, 'invoice.currency')
+            ?? data_get($normalizedPayload, 'invoice._data.currency')
             ?? 'USD'
-        ));
+        );
         $description = (string) (
-            data_get($payload, 'description')
-            ?? data_get($payload, 'order.description')
+            data_get($normalizedPayload, 'description')
+            ?? data_get($normalizedPayload, 'customData.description')
+            ?? data_get($normalizedPayload, 'order.description')
+            ?? data_get($normalizedPayload, 'invoice._data.name')
             ?? 'GHL order webhook'
         );
 
@@ -71,7 +85,7 @@ class GhlBridgeWebhookController extends Controller
                 'source' => 'ghl_webhook',
                 'status' => NmiPaymentOrder::STATUS_PENDING,
                 'nmi_order_id' => 'ghl-order-'.$orderId,
-                'webhook_payload' => $payload,
+                'webhook_payload' => $normalizedPayload,
             ]
         );
 
