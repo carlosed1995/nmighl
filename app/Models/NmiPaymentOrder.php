@@ -27,6 +27,7 @@ class NmiPaymentOrder extends Model
         'status',
         'nmi_transaction_id',
         'nmi_order_id',
+        'nmi_invoice_id',
         'response_message',
         'synced_to_ghl_at',
         'ghl_sync_error',

@@ -51,6 +51,10 @@ return [
         'api_url' => env('NMI_API_URL', 'https://secure.networkmerchants.com/api/transact.php'),
         'security_key' => env('NMI_SECURITY_KEY'),
         'webhook_signing_key' => env('NMI_WEBHOOK_SIGNING_KEY'),
+        'sync_ghl_invoices' => env('NMI_SYNC_GHL_INVOICES_TO_NMI', true),
+        // add_invoice exige email. Si el contacto GHL no está en Laravel o no tiene email, se usa esto.
+        // Sustituye en .env con tu bandeja real: NMI_INVOICE_FALLBACK_EMAIL (p. ej. operaciones@tudominio.com).
+        'invoice_fallback_email' => env('NMI_INVOICE_FALLBACK_EMAIL') ?: 'noreply@example.com',
     ],
 
 ];

@@ -96,6 +96,7 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Amount</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">GHL Order</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">NMI Invoice</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Transaction ID</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Message</th>
                 </tr>
@@ -124,12 +125,13 @@
                                 <span class="ml-1 text-rose-600 text-xs">sync error</span>
                             @endif
                         </td>
+                        <td class="px-6 py-4 text-slate-600">{{ $order->nmi_invoice_id ?? '-' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $order->nmi_transaction_id ?? '-' }}</td>
                         <td class="px-6 py-4 text-slate-600">{{ $order->response_message ?? '-' }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center text-slate-500">
+                        <td colspan="8" class="px-6 py-8 text-center text-slate-500">
                             No orders yet. Create your first order and process payment.
                         </td>
                     </tr>

@@ -87,6 +87,136 @@ class NmiGatewayService
         return $order;
     }
 
+    /**
+     * Register an open invoice in NMI (invoicing=add_invoice). This is not a card charge:
+     * the invoice appears in NMI as payable until the customer pays it there (or you run a sale).
+     */
+    public function registerGatewayInvoice(NmiPaymentOrder $order): void
+    {
+        if (! config('services.nmi.sync_ghl_invoices', true)) {
+            return;
+        }
+
+        if ($order->source !== 'ghl_webhook') {
+            return;
+        }
+
+        if ($order->nmi_invoice_id) {
+            return;
+        }
+
+        $securityKey = (string) config('services.nmi.security_key');
+        $apiUrl = (string) config('services.nmi.api_url');
+
+        if ($securityKey === '' || $apiUrl === '') {
+            Log::warning('Skipped NMI add_invoice: missing NMI credentials.', ['order_id' => $order->id]);
+
+            return;
+        }
+
+        $email = trim((string) ($order->client?->email ?? ''));
+        if ($email === '') {
+            // Prioridad: email del cliente sync en ghl_clients; si no hay, .env NMI_INVOICE_FALLBACK_EMAIL (ver config/services.php nmi.invoice_fallback_email).
+            $email = trim((string) config('services.nmi.invoice_fallback_email'));
+        }
+
+        if ($email === '') {
+            Log::warning('Skipped NMI add_invoice: no usable email (client, NMI_INVOICE_FALLBACK_EMAIL, nor config default).', [
+                'order_id' => $order->id,
+                'ghl_order_id' => $order->ghl_order_id,
+            ]);
+
+            return;
+        }
+
+        $orderIdRef = $order->nmi_order_id ?: ('ghl-order-'.($order->ghl_order_id ?? (string) $order->id));
+
+        $name = trim((string) ($order->client?->name ?? ''));
+        $firstName = $name;
+        $lastName = '';
+        if ($name !== '' && str_contains($name, ' ')) {
+            $parts = preg_split('/\s+/', $name, 2);
+            $firstName = (string) ($parts[0] ?? $name);
+            $lastName = (string) ($parts[1] ?? '');
+        }
+
+        $requestData = [
+            'security_key' => $securityKey,
+            'invoicing' => 'add_invoice',
+            'amount' => number_format((float) $order->amount, 2, '.', ''),
+            'email' => $email,
+            'orderid' => $orderIdRef,
+            'order_description' => $order->description ?: 'GHL invoice bridge',
+            'currency' => $order->currency ?: 'USD',
+        ];
+
+        if ($firstName !== '') {
+            $requestData['first_name'] = $firstName;
+        }
+        if ($lastName !== '') {
+            $requestData['last_name'] = $lastName;
+        }
+
+        $response = Http::asForm()->post($apiUrl, $requestData);
+
+        if (! $response->successful()) {
+            Log::warning('NMI add_invoice HTTP error', [
+                'order_id' => $order->id,
+                'status' => $response->status(),
+            ]);
+            $order->fill([
+                'response_message' => 'NMI invoice register: HTTP '.$response->status(),
+            ]);
+            $order->save();
+
+            return;
+        }
+
+        parse_str((string) $response->body(), $parsed);
+
+        if (! is_array($parsed) || $parsed === []) {
+            Log::warning('NMI add_invoice empty response', ['order_id' => $order->id]);
+
+            return;
+        }
+
+        $responseCode = (string) ($parsed['response_code'] ?? '');
+        $legacyResponse = (string) ($parsed['response'] ?? '');
+        $invoiceId = (string) ($parsed['invoice_id'] ?? '');
+        $responseText = (string) ($parsed['responsetext'] ?? $parsed['response_text'] ?? '');
+
+        $ok = $responseCode === '1' || $responseCode === '100' || $legacyResponse === '1';
+
+        $priorGateway = (array) ($order->gateway_payload ?? []);
+
+        if ($ok && $invoiceId !== '') {
+            $order->fill([
+                'nmi_invoice_id' => $invoiceId,
+                'response_message' => $responseText !== '' ? $responseText : 'NMI invoice created',
+                'gateway_payload' => array_merge($priorGateway, [
+                    'add_invoice_response' => $parsed,
+                ]),
+            ]);
+            $order->save();
+
+            return;
+        }
+
+        $order->fill([
+            'response_message' => $responseText !== '' ? $responseText : 'NMI add_invoice failed',
+            'gateway_payload' => array_merge($priorGateway, [
+                'add_invoice_response' => $parsed,
+            ]),
+        ]);
+        $order->save();
+
+        Log::warning('NMI add_invoice declined or missing invoice_id', [
+            'order_id' => $order->id,
+            'response_code' => $responseCode,
+            'legacy_response' => $legacyResponse,
+        ]);
+    }
+
     public function handleWebhook(Request $request): ?NmiPaymentOrder
     {
         $payload = $request->all();

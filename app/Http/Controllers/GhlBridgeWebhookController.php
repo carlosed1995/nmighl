@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\GhlClient;
 use App\Models\NmiPaymentOrder;
+use App\Services\NmiGatewayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class GhlBridgeWebhookController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, NmiGatewayService $gatewayService): Response
     {
         $this->assertWebhookSecret($request);
 
@@ -73,7 +74,7 @@ class GhlBridgeWebhookController extends Controller
             $client = GhlClient::query()->where('ghl_contact_id', $contactId)->first();
         }
 
-        NmiPaymentOrder::query()->updateOrCreate(
+        $order = NmiPaymentOrder::query()->updateOrCreate(
             ['ghl_order_id' => $orderId],
             [
                 'ghl_client_id' => $client?->id,
@@ -88,6 +89,9 @@ class GhlBridgeWebhookController extends Controller
                 'webhook_payload' => $normalizedPayload,
             ]
         );
+
+        $order->load('client');
+        $gatewayService->registerGatewayInvoice($order);
 
         return response('ok', 200);
     }
