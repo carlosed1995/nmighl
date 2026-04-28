@@ -226,6 +226,8 @@ class NmiGatewayService
             data_get($payload, 'transaction.id')
             ?? data_get($payload, 'data.transaction.id')
             ?? data_get($payload, 'transactionid')
+            ?? data_get($payload, 'transaction_id')
+            ?? data_get($payload, 'id')
             ?? ''
         );
 
@@ -233,6 +235,10 @@ class NmiGatewayService
             data_get($payload, 'transaction.orderid')
             ?? data_get($payload, 'data.transaction.orderid')
             ?? data_get($payload, 'orderid')
+            ?? data_get($payload, 'order_id')
+            ?? data_get($payload, 'orderId')
+            ?? data_get($payload, 'transaction.order_id')
+            ?? data_get($payload, 'data.transaction.order_id')
             ?? ''
         );
         $invoiceId = (string) (
@@ -240,6 +246,7 @@ class NmiGatewayService
             ?? data_get($payload, 'data.invoice_id')
             ?? data_get($payload, 'invoice.id')
             ?? data_get($payload, 'data.invoice.id')
+            ?? data_get($payload, 'invoiceId')
             ?? ''
         );
 
@@ -267,10 +274,30 @@ class NmiGatewayService
         }
 
         if (! $order) {
+            Log::info('NMI webhook received but order not found for reconciliation', [
+                'transaction_id' => $transactionId,
+                'order_id' => $orderId,
+                'invoice_id' => $invoiceId,
+                'event' => data_get($payload, 'event') ?? data_get($payload, 'event_type'),
+            ]);
+
             return null;
         }
 
         $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
+        $normalizedStatus = strtolower((string) (
+            data_get($payload, 'status')
+            ?? data_get($payload, 'transaction.status')
+            ?? data_get($payload, 'data.transaction.status')
+            ?? ''
+        ));
+        $responseCode = (string) (
+            data_get($payload, 'response_code')
+            ?? data_get($payload, 'response.code')
+            ?? data_get($payload, 'transaction.response_code')
+            ?? data_get($payload, 'data.transaction.response_code')
+            ?? ''
+        );
         $responseText = strtolower((string) (data_get($payload, 'responsetext') ?? data_get($payload, 'response_text') ?? ''));
         $status = $order->status;
 
@@ -284,11 +311,23 @@ class NmiGatewayService
             || str_contains($event, 'auth.success')
             || str_contains($event, 'invoice.paid')
             || str_contains($event, 'invoice.payment.success')
+            || $normalizedStatus === 'approved'
+            || $normalizedStatus === 'paid'
+            || $responseCode === '1'
+            || $responseCode === '100'
             || str_contains($responseText, 'paid')
             || str_contains($responseText, 'approved')
         ) {
             $status = NmiPaymentOrder::STATUS_APPROVED;
-        } elseif (str_contains($event, 'sale.failure') || str_contains($event, 'capture.failure') || str_contains($event, 'auth.failure')) {
+        } elseif (
+            str_contains($event, 'sale.failure')
+            || str_contains($event, 'capture.failure')
+            || str_contains($event, 'auth.failure')
+            || $normalizedStatus === 'declined'
+            || $normalizedStatus === 'failed'
+            || $responseCode === '2'
+            || $responseCode === '300'
+        ) {
             $status = NmiPaymentOrder::STATUS_DECLINED;
         }
 
