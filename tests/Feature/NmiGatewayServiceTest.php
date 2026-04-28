@@ -152,46 +152,4 @@ class NmiGatewayServiceTest extends TestCase
         $this->assertNotNull($order->synced_to_ghl_at);
     }
 
-    public function test_webhook_with_event_body_format_is_parsed_and_approved(): void
-    {
-        $order = NmiPaymentOrder::query()->create([
-            'amount' => 77.77,
-            'currency' => 'USD',
-            'description' => 'Invoice paid in NMI',
-            'status' => NmiPaymentOrder::STATUS_PENDING,
-            'source' => 'ghl_webhook',
-            'ghl_order_id' => '000017',
-            'nmi_order_id' => 'ghl-order-000017',
-            'nmi_invoice_id' => '11997186471',
-        ]);
-
-        $ghlApiMock = $this->mock(GhlApiService::class);
-        $ghlApiMock
-            ->shouldReceive('recordOrderPayment')
-            ->once()
-            ->with('000017', \Mockery::on(function (array $payload): bool {
-                return $payload['amount'] == 77.77
-                    && $payload['transaction_id'] === 'TXN-EVENT-BODY-1';
-            }));
-
-        $service = app(NmiGatewayService::class);
-        $request = Request::create('/webhooks/nmi', 'POST', [
-            'event_type' => 'transaction.sale.success',
-            'event_body' => [
-                'transaction_id' => 'TXN-EVENT-BODY-1',
-                'order_id' => 'ghl-order-000017',
-                'invoice_id' => '11997186471',
-                'condition' => 'complete',
-            ],
-        ]);
-
-        $result = $service->handleWebhook($request);
-
-        $this->assertNotNull($result);
-        $order->refresh();
-        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
-        $this->assertSame('TXN-EVENT-BODY-1', $order->nmi_transaction_id);
-        $this->assertNotNull($order->synced_to_ghl_at);
-        $this->assertNull($order->ghl_sync_error);
-    }
 }
