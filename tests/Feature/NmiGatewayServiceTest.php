@@ -17,6 +17,8 @@ class NmiGatewayServiceTest extends TestCase
 
     public function test_invoice_paid_webhook_matches_by_invoice_id_and_syncs_to_ghl(): void
     {
+        config()->set('services.nmi.sync_approved_to_ghl', true);
+
         $order = NmiPaymentOrder::query()->create([
             'amount' => 44.44,
             'currency' => 'USD',
@@ -116,6 +118,8 @@ class NmiGatewayServiceTest extends TestCase
 
     public function test_webhook_with_raw_querystring_body_is_parsed_and_approved(): void
     {
+        config()->set('services.nmi.sync_approved_to_ghl', true);
+
         $order = NmiPaymentOrder::query()->create([
             'amount' => 88.88,
             'currency' => 'USD',
@@ -150,6 +154,46 @@ class NmiGatewayServiceTest extends TestCase
         $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
         $this->assertSame('11997170371', $order->nmi_transaction_id);
         $this->assertNotNull($order->synced_to_ghl_at);
+    }
+
+    public function test_webhook_event_body_marks_order_approved_without_syncing_ghl_when_disabled(): void
+    {
+        config()->set('services.nmi.sync_approved_to_ghl', false);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 120.00,
+            'currency' => 'USD',
+            'description' => 'Invoice payment from NMI',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => '000020',
+            'nmi_order_id' => 'ghl-order-000020',
+            'nmi_invoice_id' => '11998713814',
+        ]);
+
+        $ghlApiMock = $this->mock(GhlApiService::class);
+        $ghlApiMock
+            ->shouldReceive('recordOrderPayment')
+            ->never();
+
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event_type' => 'transaction.sale.success',
+            'event_body' => [
+                'transaction_id' => '11998799999',
+                'order_id' => 'ghl-order-000020',
+                'invoice_id' => '11998713814',
+                'condition' => 'complete',
+            ],
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertSame('11998799999', $order->nmi_transaction_id);
+        $this->assertNull($order->synced_to_ghl_at);
     }
 
 }
