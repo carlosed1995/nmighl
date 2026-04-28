@@ -256,6 +256,16 @@ class NmiGatewayService
             ?? data_get($payload, 'invoiceId')
             ?? ''
         );
+        $ghlOrderIdCandidate = $this->normalizeGhlOrderId($orderId);
+
+        Log::info('NMI webhook received for reconciliation', [
+            'event' => data_get($payload, 'event') ?? data_get($payload, 'event_type'),
+            'transaction_id' => $transactionId,
+            'order_id' => $orderId,
+            'invoice_id' => $invoiceId,
+            'ghl_order_candidate' => $ghlOrderIdCandidate,
+            'payload_keys' => array_keys($payload),
+        ]);
 
         $order = null;
         if ($transactionId !== '') {
@@ -269,6 +279,9 @@ class NmiGatewayService
             $order = NmiPaymentOrder::query()
                 ->where('nmi_order_id', $orderId)
                 ->orWhere('ghl_order_id', str_replace('ghl-order-', '', $orderId))
+                ->when($ghlOrderIdCandidate !== '', function ($query) use ($ghlOrderIdCandidate) {
+                    $query->orWhere('ghl_order_id', $ghlOrderIdCandidate);
+                })
                 ->latest()
                 ->first();
         }
@@ -362,6 +375,24 @@ class NmiGatewayService
         }
 
         return $order;
+    }
+
+    private function normalizeGhlOrderId(string $orderId): string
+    {
+        $candidate = strtolower(trim($orderId));
+        if ($candidate === '') {
+            return '';
+        }
+
+        if (str_starts_with($candidate, 'ghl-order-')) {
+            $candidate = substr($candidate, strlen('ghl-order-'));
+        }
+
+        if ($candidate !== '' && preg_match('/^\d+$/', $candidate) === 1) {
+            $candidate = ltrim($candidate, '0');
+        }
+
+        return $candidate === '' ? '0' : $candidate;
     }
 
     private function extractWebhookPayload(Request $request): array

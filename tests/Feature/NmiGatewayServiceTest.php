@@ -196,4 +196,40 @@ class NmiGatewayServiceTest extends TestCase
         $this->assertNull($order->synced_to_ghl_at);
     }
 
+    public function test_webhook_matches_ghl_order_with_leading_zeroes_in_event_order_id(): void
+    {
+        config()->set('services.nmi.sync_approved_to_ghl', false);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 133.00,
+            'currency' => 'USD',
+            'description' => 'Invoice paid in NMI VT',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => '23',
+            'nmi_order_id' => null,
+            'nmi_invoice_id' => '12000269095',
+        ]);
+
+        $this->mock(GhlApiService::class);
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event_type' => 'transaction.sale.success',
+            'event_body' => [
+                'transaction_id' => '12000278896',
+                'order_id' => 'ghl-order-000023',
+                'invoice_id' => '12000269095',
+                'condition' => 'complete',
+            ],
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertSame('12000278896', $order->nmi_transaction_id);
+        $this->assertSame('ghl-order-000023', $order->nmi_order_id);
+    }
+
 }
