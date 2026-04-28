@@ -225,6 +225,8 @@ class NmiGatewayService
         $transactionId = (string) (
             data_get($payload, 'transaction.id')
             ?? data_get($payload, 'data.transaction.id')
+            ?? data_get($payload, 'event_body.transaction_id')
+            ?? data_get($payload, 'event_body.transaction.id')
             ?? data_get($payload, 'transactionid')
             ?? data_get($payload, 'transaction_id')
             ?? data_get($payload, 'id')
@@ -234,6 +236,9 @@ class NmiGatewayService
         $orderId = (string) (
             data_get($payload, 'transaction.orderid')
             ?? data_get($payload, 'data.transaction.orderid')
+            ?? data_get($payload, 'event_body.order_id')
+            ?? data_get($payload, 'event_body.orderid')
+            ?? data_get($payload, 'event_body.transaction.order_id')
             ?? data_get($payload, 'orderid')
             ?? data_get($payload, 'order_id')
             ?? data_get($payload, 'orderId')
@@ -246,6 +251,8 @@ class NmiGatewayService
             ?? data_get($payload, 'data.invoice_id')
             ?? data_get($payload, 'invoice.id')
             ?? data_get($payload, 'data.invoice.id')
+            ?? data_get($payload, 'event_body.invoice_id')
+            ?? data_get($payload, 'event_body.invoice.id')
             ?? data_get($payload, 'invoiceId')
             ?? ''
         );
@@ -290,6 +297,8 @@ class NmiGatewayService
             data_get($payload, 'status')
             ?? data_get($payload, 'transaction.status')
             ?? data_get($payload, 'data.transaction.status')
+            ?? data_get($payload, 'event_body.condition')
+            ?? data_get($payload, 'event_body.status')
             ?? ''
         ));
         $responseCode = (string) (
@@ -297,9 +306,16 @@ class NmiGatewayService
             ?? data_get($payload, 'response.code')
             ?? data_get($payload, 'transaction.response_code')
             ?? data_get($payload, 'data.transaction.response_code')
+            ?? data_get($payload, 'event_body.response_code')
             ?? ''
         );
-        $responseText = strtolower((string) (data_get($payload, 'responsetext') ?? data_get($payload, 'response_text') ?? ''));
+        $responseText = strtolower((string) (
+            data_get($payload, 'responsetext')
+            ?? data_get($payload, 'response_text')
+            ?? data_get($payload, 'event_body.responsetext')
+            ?? data_get($payload, 'event_body.response_text')
+            ?? ''
+        ));
         $status = $order->status;
 
         if (str_contains($event, 'refund.success')) {
