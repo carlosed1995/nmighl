@@ -235,6 +235,13 @@ class NmiGatewayService
             ?? data_get($payload, 'orderid')
             ?? ''
         );
+        $invoiceId = (string) (
+            data_get($payload, 'invoice_id')
+            ?? data_get($payload, 'data.invoice_id')
+            ?? data_get($payload, 'invoice.id')
+            ?? data_get($payload, 'data.invoice.id')
+            ?? ''
+        );
 
         $order = null;
         if ($transactionId !== '') {
@@ -252,18 +259,34 @@ class NmiGatewayService
                 ->first();
         }
 
+        if (! $order && $invoiceId !== '') {
+            $order = NmiPaymentOrder::query()
+                ->where('nmi_invoice_id', $invoiceId)
+                ->latest()
+                ->first();
+        }
+
         if (! $order) {
             return null;
         }
 
         $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
+        $responseText = strtolower((string) (data_get($payload, 'responsetext') ?? data_get($payload, 'response_text') ?? ''));
         $status = $order->status;
 
         if (str_contains($event, 'refund.success')) {
             $status = NmiPaymentOrder::STATUS_REFUNDED;
         } elseif (str_contains($event, 'void.success')) {
             $status = NmiPaymentOrder::STATUS_VOIDED;
-        } elseif (str_contains($event, 'sale.success') || str_contains($event, 'capture.success') || str_contains($event, 'auth.success')) {
+        } elseif (
+            str_contains($event, 'sale.success')
+            || str_contains($event, 'capture.success')
+            || str_contains($event, 'auth.success')
+            || str_contains($event, 'invoice.paid')
+            || str_contains($event, 'invoice.payment.success')
+            || str_contains($responseText, 'paid')
+            || str_contains($responseText, 'approved')
+        ) {
             $status = NmiPaymentOrder::STATUS_APPROVED;
         } elseif (str_contains($event, 'sale.failure') || str_contains($event, 'capture.failure') || str_contains($event, 'auth.failure')) {
             $status = NmiPaymentOrder::STATUS_DECLINED;
@@ -273,6 +296,7 @@ class NmiGatewayService
             'status' => $status,
             'nmi_transaction_id' => $transactionId !== '' ? $transactionId : $order->nmi_transaction_id,
             'nmi_order_id' => $orderId !== '' ? $orderId : $order->nmi_order_id,
+            'nmi_invoice_id' => $invoiceId !== '' ? $invoiceId : $order->nmi_invoice_id,
             'webhook_payload' => $payload,
         ]);
         $order->save();
