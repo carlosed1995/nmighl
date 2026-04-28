@@ -219,7 +219,7 @@ class NmiGatewayService
 
     public function handleWebhook(Request $request): ?NmiPaymentOrder
     {
-        $payload = $request->all();
+        $payload = $this->extractWebhookPayload($request);
         $this->assertValidSignature($request);
 
         $transactionId = (string) (
@@ -279,6 +279,7 @@ class NmiGatewayService
                 'order_id' => $orderId,
                 'invoice_id' => $invoiceId,
                 'event' => data_get($payload, 'event') ?? data_get($payload, 'event_type'),
+                'payload_keys' => array_keys($payload),
             ]);
 
             return null;
@@ -345,6 +346,28 @@ class NmiGatewayService
         }
 
         return $order;
+    }
+
+    private function extractWebhookPayload(Request $request): array
+    {
+        $payload = $request->all();
+        if (is_array($payload) && $payload !== []) {
+            return $payload;
+        }
+
+        $rawBody = trim((string) $request->getContent());
+        if ($rawBody === '') {
+            return [];
+        }
+
+        $decodedJson = json_decode($rawBody, true);
+        if (is_array($decodedJson) && $decodedJson !== []) {
+            return $decodedJson;
+        }
+
+        parse_str($rawBody, $parsed);
+
+        return is_array($parsed) ? $parsed : [];
     }
 
     private function assertValidSignature(Request $request): void

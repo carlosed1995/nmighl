@@ -113,4 +113,42 @@ class NmiGatewayServiceTest extends TestCase
 
         $service->handleWebhook($request);
     }
+
+    public function test_webhook_with_raw_querystring_body_is_parsed_and_approved(): void
+    {
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 88.88,
+            'currency' => 'USD',
+            'description' => 'Invoice from webhook',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => '000015',
+            'nmi_order_id' => 'ghl-order-000015',
+            'nmi_invoice_id' => '11997168758',
+        ]);
+
+        $ghlApiMock = $this->mock(GhlApiService::class);
+        $ghlApiMock
+            ->shouldReceive('recordOrderPayment')
+            ->once();
+
+        $service = app(NmiGatewayService::class);
+        $request = Request::create(
+            '/webhooks/nmi',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'text/plain'],
+            'transactionid=11997170371&orderid=ghl-order-000015&response_code=100&responsetext=Approved'
+        );
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertSame('11997170371', $order->nmi_transaction_id);
+        $this->assertNotNull($order->synced_to_ghl_at);
+    }
 }
