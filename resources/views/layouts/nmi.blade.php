@@ -49,6 +49,10 @@
                 <i class="fa-solid fa-users-gear w-5 text-center {{ request()->routeIs('clients') ? 'text-teal-600' : 'text-slate-400' }}"></i>
                 <span class="text-sm">Clients-GHL</span>
             </a>
+            <a href="{{ route('subaccounts') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('subaccounts*') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                <i class="fa-solid fa-sitemap w-5 text-center {{ request()->routeIs('subaccounts*') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                <span class="text-sm">Sub-accounts</span>
+            </a>
 
             <div class="pt-4 pb-2 px-3">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overview</p>
