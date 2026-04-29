@@ -172,7 +172,13 @@ class GhlApiService
         $response = $this->request()->post('/payments/orders/'.$orderId.'/record-payment', $requestPayload);
 
         if (! $response->successful()) {
-            throw new RuntimeException('Failed to record payment in GHL order '.$orderId.' (status '.$response->status().').');
+            $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
+            if ($detail === '') {
+                $detail = trim((string) $response->body());
+            }
+            $detail = $detail !== '' ? ' '.$detail : '';
+
+            throw new RuntimeException('Failed to record payment in GHL order '.$orderId.' (status '.$response->status().').'.$detail);
         }
     }
 
