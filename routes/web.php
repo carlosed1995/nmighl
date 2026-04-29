@@ -11,6 +11,7 @@ use App\Http\Controllers\NmiWebhookController;
 use App\Http\Controllers\SalesRepsController;
 use App\Http\Controllers\ReportingController;
 use App\Http\Controllers\AccountSettingsController;
+use App\Http\Controllers\SubaccountsController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/clients/pit', [ClientsGhlController::class, 'connectPit'])->name('clients.pit');
     Route::post('/clients/location', [ClientsGhlController::class, 'saveLocation'])->name('clients.location');
     Route::post('/clients/sync', [ClientsGhlController::class, 'sync'])->name('clients.sync');
+    Route::get('/subaccounts', [SubaccountsController::class, 'index'])->name('subaccounts');
+    Route::get('/subaccounts/{location}', [SubaccountsController::class, 'clients'])->name('subaccounts.clients');
+    Route::get('/subaccounts/{location}/{client}', [SubaccountsController::class, 'clientProfile'])->name('subaccounts.client');
+    Route::get('/subaccounts/{location}/{client}/invoices', [SubaccountsController::class, 'clientInvoices'])->name('subaccounts.client.invoices');
     Route::get('/sales-reps', [SalesRepsController::class, 'index'])->name('sales-reps');
     Route::get('/reporting', [ReportingController::class, 'index'])->name('reporting');
     Route::get('/account-settings', [AccountSettingsController::class, 'index'])->name('account-settings');
