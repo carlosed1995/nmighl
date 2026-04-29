@@ -6,9 +6,10 @@
     <h1 class="text-3xl font-bold text-slate-900 mb-2">Sub-accounts</h1>
     <p class="text-slate-500 mb-6">Sub-accounts and their associated plans.</p>
 
-    <x-ui.connect-clients :count="$locations->count()" label="Total Sub-accounts" />
+    <x-ui.connect-clients :count="$locations->total()" />
+    
 
-    <x-ui.data-table :columns="['Name', 'Plan', 'NMI Connection', 'Actions']">
+    <x-ui.data-table :columns="['Name', 'Plan', 'NMI Connection', 'Actions']" :paginate="$locations">
         @forelse ($locations as $location)
             <tr>
                 <td class="px-6 py-4 text-slate-900 font-medium">{{ $location->name }}</td>
@@ -34,3 +35,4 @@
         @endforelse
     </x-ui.data-table>
 @endsection
+m

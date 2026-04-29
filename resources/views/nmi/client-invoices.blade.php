@@ -22,9 +22,9 @@
         ];
     @endphp
 
-    <x-ui.connect-clients :count="$invoices->count()" label="Total Invoices" />
+    <x-ui.connect-clients :count="$invoices->total()" label="Total Invoices" />
 
-    <x-ui.data-table :columns="['Invoice #', 'Issued Date', 'Due Date', 'Amount', 'Status', 'Actions']">
+    <x-ui.data-table :columns="['Invoice #', 'Issued Date', 'Due Date', 'Amount', 'Status', 'Actions']" :paginate="$invoices">
         @forelse ($invoices as $invoice)
             <tr>
                 <td class="px-6 py-4 text-slate-900 font-medium font-mono text-xs">{{ $invoice->invoice_number ?? '-' }}</td>

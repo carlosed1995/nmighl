@@ -12,9 +12,9 @@
         <p class="text-slate-500">Clients associated with this sub-account.</p>
     </div>
 
-    <x-ui.connect-clients :count="$clients->count()" label="Total Clients" />
+    <x-ui.connect-clients :count="$clients->total()" label="Total Clients" />
 
-    <x-ui.data-table :columns="['Name', 'Email', 'Phone', 'Actions']">
+    <x-ui.data-table :columns="['Name', 'Email', 'Phone', 'Actions']" :paginate="$clients">
         @forelse ($clients as $client)
             <tr>
                 <td class="px-6 py-4 text-slate-900 font-medium">{{ $client->name ?? 'No name' }}</td>
