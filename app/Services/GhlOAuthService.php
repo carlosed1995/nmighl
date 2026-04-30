@@ -74,12 +74,6 @@ class GhlOAuthService
             return $pit;
         }
 
-        // Automatic fallback: if a server PIT exists, use it even when OAuth is disabled.
-        $serverPit = (string) config('services.ghl.agency_token');
-        if ($serverPit !== '') {
-            return $serverPit;
-        }
-
         $token = GhlOauthToken::query()->latestValid()->first();
 
         if (! $token) {
