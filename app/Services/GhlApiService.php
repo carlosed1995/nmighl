@@ -166,8 +166,9 @@ class GhlApiService
     public function recordOrderPayment(string $orderId, array $payload = []): void
     {
         $locationId = $this->resolveLocationId($payload);
+        $amount = $this->normalizeAmount($payload['amount'] ?? null);
         $requestPayload = array_filter([
-            'amount' => $payload['amount'] ?? null,
+            'amount' => $amount,
             'transactionId' => $payload['transaction_id'] ?? null,
             'note' => $payload['note'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
@@ -202,11 +203,12 @@ class GhlApiService
     public function recordInvoicePayment(string $invoiceId, array $payload = []): void
     {
         $locationId = $this->resolveLocationId($payload);
+        $amount = $this->normalizeAmount($payload['amount'] ?? null);
         $requestPayload = array_filter([
             'altId' => $locationId,
             'altType' => $locationId ? 'location' : null,
             'mode' => $payload['mode'] ?? 'card',
-            'amount' => $payload['amount'] ?? null,
+            'amount' => $amount,
             'notes' => $payload['notes'] ?? $payload['note'] ?? null,
             'meta' => array_filter([
                 'source' => $payload['source'] ?? 'nmi-bridge',
@@ -292,5 +294,19 @@ class GhlApiService
             'altId' => $locationId,
             'altType' => 'location',
         ]);
+    }
+
+    private function normalizeAmount(mixed $amount): int|float|null
+    {
+        if ($amount === null || $amount === '') {
+            return null;
+        }
+
+        $numeric = (float) $amount;
+        if ((int) $numeric == $numeric) {
+            return (int) $numeric;
+        }
+
+        return round($numeric, 2);
     }
 }
