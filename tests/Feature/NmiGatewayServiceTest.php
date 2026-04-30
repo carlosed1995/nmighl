@@ -15,6 +15,50 @@ class NmiGatewayServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_approved_webhook_prefers_order_sync_when_both_ghl_ids_exist(): void
+    {
+        config()->set('services.nmi.sync_approved_to_ghl', true);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 77.77,
+            'currency' => 'USD',
+            'description' => 'Both IDs present',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => '000035',
+            'ghl_invoice_id' => 'ghl-inv-both-1',
+            'nmi_order_id' => 'ghl-order-000035',
+            'nmi_invoice_id' => 'NMI-INV-BOTH-1',
+        ]);
+
+        $ghlApiMock = $this->mock(GhlApiService::class);
+        $ghlApiMock
+            ->shouldReceive('recordOrderPayment')
+            ->once()
+            ->with('000035', \Mockery::on(function (array $payload): bool {
+                return $payload['amount'] == 77.77
+                    && $payload['transaction_id'] === 'TXN-BOTH-1'
+                    && str_contains((string) ($payload['note'] ?? ''), 'NMI bridge');
+            }));
+        $ghlApiMock->shouldReceive('recordInvoicePayment')->never();
+
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event' => 'invoice.paid',
+            'transactionid' => 'TXN-BOTH-1',
+            'orderid' => 'ghl-order-000035',
+            'invoice_id' => 'NMI-INV-BOTH-1',
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertNotNull($order->synced_to_ghl_at);
+        $this->assertNull($order->ghl_sync_error);
+    }
+
     public function test_approved_webhook_calls_record_invoice_payment_when_ghl_invoice_id_set(): void
     {
         config()->set('services.nmi.sync_approved_to_ghl', true);

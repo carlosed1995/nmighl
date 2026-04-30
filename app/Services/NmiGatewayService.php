@@ -552,10 +552,12 @@ class NmiGatewayService
                 'note' => 'Recorded from NMI bridge (Laravel).',
             ];
 
-            if ($ghlInvoiceId !== '') {
-                $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
-            } elseif ($ghlOrderId !== '') {
+            // Prefer order sync when both IDs are present.
+            // This matches the bridge/UI contract: invoice endpoint is only fallback when order ID is absent.
+            if ($ghlOrderId !== '') {
                 $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
+            } elseif ($ghlInvoiceId !== '') {
+                $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
             }
 
             $order->synced_to_ghl_at = now();
