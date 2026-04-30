@@ -768,28 +768,57 @@ class NmiGatewayService
             }
         }
 
-        $contact = $this->ghlApiService->createContact($location->ghl_id, [
-            'name' => $name,
-            'email' => $email !== '' ? $email : null,
-            'phone' => $phone !== '' ? $phone : null,
-        ]);
+        try {
+            $contact = $this->ghlApiService->createContact($location->ghl_id, [
+                'name' => $name,
+                'email' => $email !== '' ? $email : null,
+                'phone' => $phone !== '' ? $phone : null,
+            ]);
 
-        $newContactId = trim((string) ($contact['id'] ?? $contact['_id'] ?? $ghlContactId));
-        if ($newContactId === '') {
-            throw new RuntimeException('GHL contact creation returned no contact id.');
+            $newContactId = trim((string) ($contact['id'] ?? $contact['_id'] ?? $ghlContactId));
+            if ($newContactId === '') {
+                throw new RuntimeException('GHL contact creation returned no contact id.');
+            }
+
+            return GhlClient::query()->updateOrCreate(
+                [
+                    'ghl_location_id' => $location->id,
+                    'ghl_contact_id' => $newContactId,
+                ],
+                [
+                    'name' => (string) ($contact['name'] ?? $name),
+                    'email' => (string) ($contact['email'] ?? ($email !== '' ? $email : null)),
+                    'phone' => (string) ($contact['phone'] ?? ($phone !== '' ? $phone : null)),
+                    'raw' => $contact,
+                ]
+            );
+        } catch (\Throwable $exception) {
+            $fallbackContactId = trim((string) config('services.iprocess.fallback_ghl_contact_id', ''));
+            if ($fallbackContactId === '') {
+                throw $exception;
+            }
+
+            Log::warning('Falling back to configured GHL contact for imported payment', [
+                'location_id' => $location->ghl_id,
+                'fallback_contact_id' => $fallbackContactId,
+                'reason' => $exception->getMessage(),
+            ]);
+
+            return GhlClient::query()->updateOrCreate(
+                [
+                    'ghl_location_id' => $location->id,
+                    'ghl_contact_id' => $fallbackContactId,
+                ],
+                [
+                    'name' => $name,
+                    'email' => $email !== '' ? $email : null,
+                    'phone' => $phone !== '' ? $phone : null,
+                    'raw' => [
+                        'source' => 'iprocess_fallback_contact',
+                        'reason' => $exception->getMessage(),
+                    ],
+                ]
+            );
         }
-
-        return GhlClient::query()->updateOrCreate(
-            [
-                'ghl_location_id' => $location->id,
-                'ghl_contact_id' => $newContactId,
-            ],
-            [
-                'name' => (string) ($contact['name'] ?? $name),
-                'email' => (string) ($contact['email'] ?? ($email !== '' ? $email : null)),
-                'phone' => (string) ($contact['phone'] ?? ($phone !== '' ? $phone : null)),
-                'raw' => $contact,
-            ]
-        );
     }
 }
