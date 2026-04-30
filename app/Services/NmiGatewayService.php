@@ -129,7 +129,10 @@ class NmiGatewayService
             return;
         }
 
-        $orderIdRef = $order->nmi_order_id ?: ('ghl-order-'.($order->ghl_order_id ?? (string) $order->id));
+        $orderIdRef = $order->nmi_order_id
+            ?: ($order->ghl_order_id ? 'ghl-order-'.$order->ghl_order_id : null)
+            ?: ($order->ghl_invoice_id ? 'ghl-invoice-'.$order->ghl_invoice_id : null)
+            ?: ('order-'.$order->id);
 
         $name = trim((string) ($order->client?->name ?? ''));
         $firstName = $name;
@@ -276,9 +279,15 @@ class NmiGatewayService
         }
 
         if (! $order && $orderId !== '') {
+            $trimOrderId = trim($orderId);
             $order = NmiPaymentOrder::query()
-                ->where('nmi_order_id', $orderId)
-                ->orWhere('ghl_order_id', str_replace('ghl-order-', '', $orderId))
+                ->where('nmi_order_id', $trimOrderId)
+                ->when(preg_match('/^ghl-order-(.+)$/i', $trimOrderId, $orderMatch) === 1, function ($query) use ($orderMatch) {
+                    $query->orWhere('ghl_order_id', $orderMatch[1]);
+                })
+                ->when(preg_match('/^ghl-invoice-(.+)$/i', $trimOrderId, $invoiceMatch) === 1, function ($query) use ($invoiceMatch) {
+                    $query->orWhere('ghl_invoice_id', $invoiceMatch[1]);
+                })
                 ->when($ghlOrderIdCandidate !== '', function ($query) use ($ghlOrderIdCandidate) {
                     $query->orWhere('ghl_order_id', $ghlOrderIdCandidate);
                 })
@@ -293,19 +302,6 @@ class NmiGatewayService
                 ->first();
         }
 
-        if (! $order) {
-            Log::info('NMI webhook received but order not found for reconciliation', [
-                'transaction_id' => $transactionId,
-                'order_id' => $orderId,
-                'invoice_id' => $invoiceId,
-                'event' => data_get($payload, 'event') ?? data_get($payload, 'event_type'),
-                'payload_keys' => array_keys($payload),
-            ]);
-
-            return null;
-        }
-
-        $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
         $normalizedStatus = strtolower((string) (
             data_get($payload, 'status')
             ?? data_get($payload, 'transaction.status')
@@ -329,36 +325,38 @@ class NmiGatewayService
             ?? data_get($payload, 'event_body.response_text')
             ?? ''
         ));
-        $status = $order->status;
+        $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
+        $status = $this->resolveWebhookStatus($event, $normalizedStatus, $responseCode, $responseText);
 
-        if (str_contains($event, 'refund.success')) {
-            $status = NmiPaymentOrder::STATUS_REFUNDED;
-        } elseif (str_contains($event, 'void.success')) {
-            $status = NmiPaymentOrder::STATUS_VOIDED;
-        } elseif (
-            str_contains($event, 'sale.success')
-            || str_contains($event, 'capture.success')
-            || str_contains($event, 'auth.success')
-            || str_contains($event, 'invoice.paid')
-            || str_contains($event, 'invoice.payment.success')
-            || $normalizedStatus === 'approved'
-            || $normalizedStatus === 'paid'
-            || $responseCode === '1'
-            || $responseCode === '100'
-            || str_contains($responseText, 'paid')
-            || str_contains($responseText, 'approved')
-        ) {
-            $status = NmiPaymentOrder::STATUS_APPROVED;
-        } elseif (
-            str_contains($event, 'sale.failure')
-            || str_contains($event, 'capture.failure')
-            || str_contains($event, 'auth.failure')
-            || $normalizedStatus === 'declined'
-            || $normalizedStatus === 'failed'
-            || $responseCode === '2'
-            || $responseCode === '300'
-        ) {
-            $status = NmiPaymentOrder::STATUS_DECLINED;
+        if (! $order && config('services.nmi.auto_create_from_webhook', false) && $status === NmiPaymentOrder::STATUS_APPROVED) {
+            $order = NmiPaymentOrder::query()->create([
+                'amount' => $this->extractWebhookAmount($payload),
+                'currency' => $this->extractWebhookCurrency($payload),
+                'description' => (string) (
+                    data_get($payload, 'event_body.order_description')
+                    ?? data_get($payload, 'transaction.order_description')
+                    ?? 'Imported from NMI webhook'
+                ),
+                'source' => 'nmi_webhook',
+                'status' => NmiPaymentOrder::STATUS_PENDING,
+                'nmi_transaction_id' => $transactionId !== '' ? $transactionId : null,
+                'nmi_order_id' => $orderId !== '' ? $orderId : null,
+                'nmi_invoice_id' => $invoiceId !== '' ? $invoiceId : null,
+                'response_message' => $responseText !== '' ? $responseText : strtoupper($event ?: 'APPROVED'),
+                'webhook_payload' => $payload,
+            ]);
+        }
+
+        if (! $order) {
+            Log::info('NMI webhook received but order not found for reconciliation', [
+                'transaction_id' => $transactionId,
+                'order_id' => $orderId,
+                'invoice_id' => $invoiceId,
+                'event' => data_get($payload, 'event') ?? data_get($payload, 'event_type'),
+                'payload_keys' => array_keys($payload),
+            ]);
+
+            return null;
         }
 
         $order->fill([
@@ -375,6 +373,74 @@ class NmiGatewayService
         }
 
         return $order;
+    }
+
+    private function resolveWebhookStatus(string $event, string $normalizedStatus, string $responseCode, string $responseText): string
+    {
+        if (str_contains($event, 'refund.success')) {
+            return NmiPaymentOrder::STATUS_REFUNDED;
+        }
+
+        if (str_contains($event, 'void.success')) {
+            return NmiPaymentOrder::STATUS_VOIDED;
+        }
+
+        if (
+            str_contains($event, 'sale.success')
+            || str_contains($event, 'capture.success')
+            || str_contains($event, 'auth.success')
+            || str_contains($event, 'invoice.paid')
+            || str_contains($event, 'invoice.payment.success')
+            || $normalizedStatus === 'approved'
+            || $normalizedStatus === 'paid'
+            || $normalizedStatus === 'complete'
+            || $responseCode === '1'
+            || $responseCode === '100'
+            || str_contains($responseText, 'paid')
+            || str_contains($responseText, 'approved')
+            || str_contains($responseText, 'success')
+        ) {
+            return NmiPaymentOrder::STATUS_APPROVED;
+        }
+
+        if (
+            str_contains($event, 'sale.failure')
+            || str_contains($event, 'capture.failure')
+            || str_contains($event, 'auth.failure')
+            || $normalizedStatus === 'declined'
+            || $normalizedStatus === 'failed'
+            || $responseCode === '2'
+            || $responseCode === '300'
+        ) {
+            return NmiPaymentOrder::STATUS_DECLINED;
+        }
+
+        return NmiPaymentOrder::STATUS_ERROR;
+    }
+
+    private function extractWebhookAmount(array $payload): float
+    {
+        $raw = data_get($payload, 'event_body.action.amount')
+            ?? data_get($payload, 'event_body.requested_amount')
+            ?? data_get($payload, 'amount')
+            ?? data_get($payload, 'transaction.amount')
+            ?? 0;
+
+        return (float) $raw;
+    }
+
+    private function extractWebhookCurrency(array $payload): string
+    {
+        $currency = (string) (
+            data_get($payload, 'event_body.currency')
+            ?? data_get($payload, 'currency')
+            ?? data_get($payload, 'transaction.currency')
+            ?? 'USD'
+        );
+
+        $currency = strtoupper(trim($currency));
+
+        return $currency !== '' ? $currency : 'USD';
     }
 
     private function normalizeGhlOrderId(string $orderId): string
@@ -468,7 +534,10 @@ class NmiGatewayService
             return;
         }
 
-        if (! $order->ghl_order_id) {
+        $ghlInvoiceId = trim((string) ($order->ghl_invoice_id ?? ''));
+        $ghlOrderId = trim((string) ($order->ghl_order_id ?? ''));
+
+        if ($ghlInvoiceId === '' && $ghlOrderId === '') {
             return;
         }
 
@@ -477,11 +546,17 @@ class NmiGatewayService
         }
 
         try {
-            $this->ghlApiService->recordOrderPayment($order->ghl_order_id, [
+            $paymentPayload = [
                 'amount' => $order->amount,
                 'transaction_id' => $order->nmi_transaction_id,
                 'note' => 'Recorded from NMI bridge (Laravel).',
-            ]);
+            ];
+
+            if ($ghlOrderId !== '') {
+                $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
+            } elseif ($ghlInvoiceId !== '') {
+                $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
+            }
 
             $order->synced_to_ghl_at = now();
             $order->ghl_sync_error = null;
@@ -492,6 +567,7 @@ class NmiGatewayService
             Log::warning('Failed syncing NMI payment to GHL', [
                 'order_id' => $order->id,
                 'ghl_order_id' => $order->ghl_order_id,
+                'ghl_invoice_id' => $order->ghl_invoice_id,
                 'error' => $exception->getMessage(),
             ]);
         }

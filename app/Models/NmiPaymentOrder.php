@@ -20,6 +20,7 @@ class NmiPaymentOrder extends Model
         'ghl_contact_id',
         'ghl_location_id',
         'ghl_order_id',
+        'ghl_invoice_id',
         'amount',
         'currency',
         'description',

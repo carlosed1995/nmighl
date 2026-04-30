@@ -28,7 +28,7 @@ class GhlApiService
             }
         }
 
-        $request = $this->request();
+        $request = $this->request(null);
 
         $attempts = [
             ['/locations/search', fn () => $request->get('/locations/search', ['limit' => 100])],
@@ -78,7 +78,7 @@ class GhlApiService
     private function fetchLocationById(string $locationId): array
     {
         try {
-            $response = $this->request()->get('/locations/'.$locationId);
+            $response = $this->request(null)->get('/locations/'.$locationId);
         } catch (\Throwable) {
             return [];
         }
@@ -104,7 +104,7 @@ class GhlApiService
 
         do {
             try {
-                $response = $this->request()->post('/contacts/search', [
+                $response = $this->request(null)->post('/contacts/search', [
                     'locationId' => $locationId,
                     'page' => $page,
                     'pageLimit' => $limit,
@@ -120,7 +120,7 @@ class GhlApiService
                     $failureReasons[] = 'POST /contacts/search status '.$response->status();
                 }
                 try {
-                    $response = $this->request()->get('/contacts/', [
+                    $response = $this->request(null)->get('/contacts/', [
                         'locationId' => $locationId,
                         'limit' => $limit,
                         'page' => $page,
@@ -169,7 +169,7 @@ class GhlApiService
             'note' => $payload['note'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $response = $this->request()->post('/payments/orders/'.$orderId.'/record-payment', $requestPayload);
+        $response = $this->request(null)->post('/payments/orders/'.$orderId.'/record-payment', $requestPayload);
 
         if (! $response->successful()) {
             $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
@@ -182,7 +182,34 @@ class GhlApiService
         }
     }
 
-    private function request(): PendingRequest
+    /**
+     * Record a manual payment on a GHL invoice (not a payments/order).
+     *
+     * @see https://marketplace.gohighlevel.com/docs/ghl/invoices/record-invoice
+     */
+    public function recordInvoicePayment(string $invoiceId, array $payload = []): void
+    {
+        $requestPayload = array_filter([
+            'amount' => $payload['amount'] ?? null,
+            'transactionId' => $payload['transaction_id'] ?? null,
+            'note' => $payload['note'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
+        $response = $this->request($version)->post('/invoices/'.$invoiceId.'/record-payment', $requestPayload);
+
+        if (! $response->successful()) {
+            $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
+            if ($detail === '') {
+                $detail = trim((string) $response->body());
+            }
+            $detail = $detail !== '' ? ' '.$detail : '';
+
+            throw new RuntimeException('Failed to record payment in GHL invoice '.$invoiceId.' (status '.$response->status().').'.$detail);
+        }
+    }
+
+    private function request(?string $version): PendingRequest
     {
         $token = '';
 
@@ -196,10 +223,12 @@ class GhlApiService
             throw new RuntimeException('Missing GHL token. Connect OAuth or define GHL_AGENCY_TOKEN.');
         }
 
+        $apiVersion = $version ?? (string) config('services.ghl.api_version', '2021-07-28');
+
         return Http::baseUrl((string) config('services.ghl.base_url'))
             ->withHeaders([
                 'Authorization' => 'Bearer '.$token,
-                'Version' => '2021-07-28',
+                'Version' => $apiVersion,
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ])

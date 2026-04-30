@@ -37,6 +37,8 @@ return [
 
     'ghl' => [
         'base_url' => env('GHL_API_BASE_URL', 'https://services.leadconnectorhq.com'),
+        'api_version' => env('GHL_API_VERSION', '2021-07-28'),
+        'invoice_api_version' => env('GHL_INVOICE_API_VERSION', '2023-02-21'),
         'oauth_base_url' => env('GHL_OAUTH_BASE_URL', 'https://marketplace.gohighlevel.com'),
         'agency_token' => env('GHL_AGENCY_TOKEN'),
         'use_private_integration' => env('GHL_USE_PRIVATE_INTEGRATION', false),
@@ -53,6 +55,7 @@ return [
         'webhook_signing_key' => env('NMI_WEBHOOK_SIGNING_KEY'),
         'sync_ghl_invoices' => env('NMI_SYNC_GHL_INVOICES_TO_NMI', true),
         'sync_approved_to_ghl' => env('NMI_SYNC_APPROVED_TO_GHL', true),
+        'auto_create_from_webhook' => env('NMI_AUTO_CREATE_FROM_WEBHOOK', false),
         // add_invoice exige email. Si el contacto GHL no está en Laravel o no tiene email, se usa esto.
         // Sustituye en .env con tu bandeja real: NMI_INVOICE_FALLBACK_EMAIL (p. ej. operaciones@tudominio.com).
         'invoice_fallback_email' => env('NMI_INVOICE_FALLBACK_EMAIL') ?: 'noreply@example.com',

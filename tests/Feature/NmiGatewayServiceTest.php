@@ -15,6 +15,54 @@ class NmiGatewayServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_approved_webhook_calls_record_invoice_payment_when_ghl_invoice_id_set(): void
+    {
+        config()->set('services.nmi.sync_approved_to_ghl', true);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 55.55,
+            'currency' => 'USD',
+            'description' => 'GHL invoice only',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => null,
+            'ghl_invoice_id' => 'ghl-inv-abc-123',
+            'nmi_order_id' => 'ghl-invoice-ghl-inv-abc-123',
+            'nmi_invoice_id' => 'NMI-INV-1',
+        ]);
+
+        $ghlApiMock = $this->mock(GhlApiService::class);
+        $ghlApiMock->shouldReceive('recordOrderPayment')->never();
+        $ghlApiMock
+            ->shouldReceive('recordInvoicePayment')
+            ->once()
+            ->with('ghl-inv-abc-123', \Mockery::on(function (array $payload): bool {
+                return $payload['amount'] == 55.55
+                    && $payload['transaction_id'] === 'TXN-INV-1'
+                    && str_contains((string) ($payload['note'] ?? ''), 'NMI bridge');
+            }));
+
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event_type' => 'transaction.sale.success',
+            'event_body' => [
+                'transaction_id' => 'TXN-INV-1',
+                'order_id' => 'ghl-invoice-ghl-inv-abc-123',
+                'invoice_id' => 'NMI-INV-1',
+                'condition' => 'complete',
+                'action' => ['response_code' => '100', 'response_text' => 'SUCCESS', 'amount' => '55.55'],
+            ],
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertNotNull($order->synced_to_ghl_at);
+        $this->assertNull($order->ghl_sync_error);
+    }
+
     public function test_invoice_paid_webhook_matches_by_invoice_id_and_syncs_to_ghl(): void
     {
         config()->set('services.nmi.sync_approved_to_ghl', true);
@@ -94,6 +142,45 @@ class NmiGatewayServiceTest extends TestCase
             return $data['invoicing'] === 'add_invoice'
                 && $data['email'] === 'ops@example.com'
                 && $data['orderid'] === 'ghl-order-000050';
+        });
+    }
+
+    public function test_register_gateway_invoice_uses_ghl_invoice_prefix_when_no_order(): void
+    {
+        config()->set('services.nmi.security_key', 'test-security-key');
+        config()->set('services.nmi.api_url', 'https://secure.networkmerchants.com/api/transact.php');
+        config()->set('services.nmi.invoice_fallback_email', 'ops@example.com');
+
+        Http::fake([
+            'https://secure.networkmerchants.com/api/transact.php' => Http::response(
+                'response=1&response_code=100&invoice_id=999888777&responsetext=Invoice+Sent',
+                200
+            ),
+        ]);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 12.34,
+            'currency' => 'USD',
+            'description' => 'GHL invoice bridge',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => null,
+            'ghl_invoice_id' => 'inv-from-ghl-99',
+            'nmi_order_id' => 'ghl-invoice-inv-from-ghl-99',
+        ]);
+
+        $this->mock(GhlApiService::class);
+        $service = app(NmiGatewayService::class);
+        $service->registerGatewayInvoice($order);
+
+        $order->refresh();
+        $this->assertSame('999888777', $order->nmi_invoice_id);
+
+        Http::assertSent(function ($request): bool {
+            $data = $request->data();
+
+            return $data['invoicing'] === 'add_invoice'
+                && $data['orderid'] === 'ghl-invoice-inv-from-ghl-99';
         });
     }
 
@@ -230,6 +317,41 @@ class NmiGatewayServiceTest extends TestCase
         $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
         $this->assertSame('12000278896', $order->nmi_transaction_id);
         $this->assertSame('ghl-order-000023', $order->nmi_order_id);
+    }
+
+    public function test_webhook_can_auto_create_local_order_when_not_found(): void
+    {
+        config()->set('services.nmi.auto_create_from_webhook', true);
+        config()->set('services.nmi.sync_approved_to_ghl', false);
+
+        $this->mock(GhlApiService::class);
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event_type' => 'transaction.sale.success',
+            'event_body' => [
+                'transaction_id' => 'AUTO-TXN-1001',
+                'order_id' => 'nmi-order-xyz-1001',
+                'invoice_id' => 'inv-1001',
+                'condition' => 'complete',
+                'currency' => 'USD',
+                'action' => [
+                    'amount' => '45.00',
+                    'response_code' => '100',
+                    'response_text' => 'SUCCESS',
+                ],
+                'order_description' => 'Direct NMI invoice paid',
+            ],
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $result->status);
+        $this->assertSame('AUTO-TXN-1001', $result->nmi_transaction_id);
+        $this->assertSame('nmi-order-xyz-1001', $result->nmi_order_id);
+        $this->assertSame('inv-1001', $result->nmi_invoice_id);
+        $this->assertSame('nmi_webhook', $result->source);
+        $this->assertSame('45.00', $result->amount);
     }
 
 }

@@ -17,15 +17,19 @@ class GhlBridgeWebhookController extends Controller
         $payload = $request->all();
         $normalizedPayload = (array) (data_get($payload, 'body') ?? $payload);
 
-        $orderId = (string) (
+        $ghlOrderId = trim((string) (
             data_get($normalizedPayload, 'orderId')
             ?? data_get($normalizedPayload, 'customData.orderId')
             ?? data_get($normalizedPayload, 'order.id')
-            ?? data_get($normalizedPayload, 'invoiceId')
-            ?? data_get($normalizedPayload, 'invoice.id')
-            ?? data_get($normalizedPayload, 'invoice._data.invoiceNumber')
             ?? ''
-        );
+        ));
+        $ghlInvoiceId = trim((string) (
+            data_get($normalizedPayload, 'invoiceId')
+            ?? data_get($normalizedPayload, 'invoice.id')
+            ?? data_get($normalizedPayload, 'invoice._id')
+            ?? data_get($normalizedPayload, 'invoice._data._id')
+            ?? ''
+        ));
         $contactId = (string) (
             data_get($normalizedPayload, 'contactId')
             ?? data_get($normalizedPayload, 'customData.contactId')
@@ -65,7 +69,11 @@ class GhlBridgeWebhookController extends Controller
             ?? 'GHL order webhook'
         );
 
-        if ($orderId === '' || $amount <= 0) {
+        if ($ghlOrderId === '' && $ghlInvoiceId === '') {
+            return response('ignored', 202);
+        }
+
+        if ($amount <= 0) {
             return response('ignored', 202);
         }
 
@@ -74,18 +82,28 @@ class GhlBridgeWebhookController extends Controller
             $client = GhlClient::query()->where('ghl_contact_id', $contactId)->first();
         }
 
+        $uniqueKey = $ghlOrderId !== ''
+            ? ['ghl_order_id' => $ghlOrderId]
+            : ['ghl_invoice_id' => $ghlInvoiceId];
+
+        $nmiOrderRef = $ghlOrderId !== ''
+            ? 'ghl-order-'.$ghlOrderId
+            : 'ghl-invoice-'.$ghlInvoiceId;
+
         $order = NmiPaymentOrder::query()->updateOrCreate(
-            ['ghl_order_id' => $orderId],
+            $uniqueKey,
             [
                 'ghl_client_id' => $client?->id,
                 'ghl_contact_id' => $contactId !== '' ? $contactId : $client?->ghl_contact_id,
                 'ghl_location_id' => $locationId !== '' ? $locationId : $client?->location?->ghl_id,
+                'ghl_order_id' => $ghlOrderId !== '' ? $ghlOrderId : null,
+                'ghl_invoice_id' => $ghlInvoiceId !== '' ? $ghlInvoiceId : null,
                 'amount' => $amount,
                 'currency' => $currency !== '' ? $currency : 'USD',
                 'description' => $description,
                 'source' => 'ghl_webhook',
                 'status' => NmiPaymentOrder::STATUS_PENDING,
-                'nmi_order_id' => 'ghl-order-'.$orderId,
+                'nmi_order_id' => $nmiOrderRef,
                 'webhook_payload' => $normalizedPayload,
             ]
         );

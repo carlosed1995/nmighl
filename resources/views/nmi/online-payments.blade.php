@@ -47,7 +47,11 @@
                 </div>
                 <div>
                     <label for="ghl_order_id" class="block text-sm font-medium text-slate-700 mb-1">GHL Order ID (optional bridge)</label>
-                    <input id="ghl_order_id" name="ghl_order_id" class="w-full rounded-lg border-slate-300 text-sm" placeholder="If set, bridge will sync payment to this GHL order" />
+                    <input id="ghl_order_id" name="ghl_order_id" class="w-full rounded-lg border-slate-300 text-sm" placeholder="If set, sync uses POST /payments/orders/.../record-payment" />
+                </div>
+                <div>
+                    <label for="ghl_invoice_id" class="block text-sm font-medium text-slate-700 mb-1">GHL Invoice ID (optional bridge)</label>
+                    <input id="ghl_invoice_id" name="ghl_invoice_id" class="w-full rounded-lg border-slate-300 text-sm" placeholder="If set (and no order), sync uses POST /invoices/.../record-payment" />
                 </div>
                 <button type="submit" class="h-10 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
                     Create order
@@ -96,6 +100,7 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Amount</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">GHL Order</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">GHL Invoice</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">NMI Invoice</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Transaction ID</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Message</th>
@@ -119,9 +124,17 @@
                         </td>
                         <td class="px-6 py-4 text-slate-600">
                             {{ $order->ghl_order_id ?? '-' }}
-                            @if ($order->synced_to_ghl_at)
+                            @if ($order->synced_to_ghl_at && $order->ghl_order_id)
                                 <span class="ml-1 text-emerald-600 text-xs">synced</span>
-                            @elseif ($order->ghl_sync_error)
+                            @elseif ($order->ghl_sync_error && $order->ghl_order_id)
+                                <span class="ml-1 text-rose-600 text-xs">sync error</span>
+                            @endif
+                        </td>
+                        <td class="px-6 py-4 text-slate-600">
+                            {{ $order->ghl_invoice_id ?? '-' }}
+                            @if ($order->synced_to_ghl_at && $order->ghl_invoice_id)
+                                <span class="ml-1 text-emerald-600 text-xs">synced</span>
+                            @elseif ($order->ghl_sync_error && $order->ghl_invoice_id)
                                 <span class="ml-1 text-rose-600 text-xs">sync error</span>
                             @endif
                         </td>
@@ -131,7 +144,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-8 text-center text-slate-500">
+                        <td colspan="9" class="px-6 py-8 text-center text-slate-500">
                             No orders yet. Create your first order and process payment.
                         </td>
                     </tr>

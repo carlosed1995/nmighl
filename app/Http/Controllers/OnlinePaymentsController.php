@@ -27,12 +27,22 @@ class OnlinePaymentsController extends Controller
             'currency' => ['nullable', 'string', 'size:3'],
             'description' => ['nullable', 'string', 'max:255'],
             'ghl_order_id' => ['nullable', 'string', 'max:128'],
+            'ghl_invoice_id' => ['nullable', 'string', 'max:128'],
         ]);
 
         $client = GhlClient::query()->with('location')->findOrFail($data['ghl_client_id']);
 
         if (! $client->location || $client->location->ghl_id === '') {
             return redirect()->route('online-payments')->with('error', 'Selected client does not have a valid sub-account.');
+        }
+
+        $ghlOrderId = trim((string) ($data['ghl_order_id'] ?? ''));
+        $ghlInvoiceId = trim((string) ($data['ghl_invoice_id'] ?? ''));
+        $nmiOrderRef = null;
+        if ($ghlOrderId !== '') {
+            $nmiOrderRef = 'ghl-order-'.$ghlOrderId;
+        } elseif ($ghlInvoiceId !== '') {
+            $nmiOrderRef = 'ghl-invoice-'.$ghlInvoiceId;
         }
 
         NmiPaymentOrder::query()->create([
@@ -43,10 +53,11 @@ class OnlinePaymentsController extends Controller
             'amount' => $data['amount'],
             'currency' => strtoupper((string) ($data['currency'] ?? 'USD')),
             'description' => (string) ($data['description'] ?? 'GHL order'),
-            'ghl_order_id' => (string) ($data['ghl_order_id'] ?? ''),
+            'ghl_order_id' => $ghlOrderId !== '' ? $ghlOrderId : null,
+            'ghl_invoice_id' => $ghlInvoiceId !== '' ? $ghlInvoiceId : null,
             'source' => 'manual',
             'status' => NmiPaymentOrder::STATUS_PENDING,
-            'nmi_order_id' => ! empty($data['ghl_order_id']) ? 'ghl-order-'.$data['ghl_order_id'] : null,
+            'nmi_order_id' => $nmiOrderRef,
         ]);
 
         return redirect()->route('online-payments')->with('status', 'Order created. You can now process payment with NMI.');
