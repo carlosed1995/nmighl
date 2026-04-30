@@ -28,6 +28,9 @@ class GhlBridgeWebhookController extends Controller
             ?? data_get($normalizedPayload, 'invoice.id')
             ?? data_get($normalizedPayload, 'invoice._id')
             ?? data_get($normalizedPayload, 'invoice._data._id')
+            ?? data_get($normalizedPayload, 'invoice._data.invoiceNumber')
+            ?? data_get($normalizedPayload, 'invoice.invoiceNumber')
+            ?? data_get($normalizedPayload, 'invoiceNumber')
             ?? ''
         ));
         $contactId = (string) (
