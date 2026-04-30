@@ -12,6 +12,8 @@ use RuntimeException;
 
 class GhlOAuthService
 {
+    private const STATE_TTL_MINUTES = 10;
+
     public function getAuthorizationUrl(string $state): string
     {
         $clientId = (string) config('services.ghl.client_id');
@@ -96,9 +98,10 @@ class GhlOAuthService
 
     public function makeAndStoreState(): string
     {
-        $state = Str::random(40);
-        Cache::put($this->stateCacheKey($state), true, now()->addMinutes(10));
-        session(['ghl_oauth_state' => $state]);
+        $nonce = Str::random(40);
+        $state = $this->signStatePayload($nonce);
+        Cache::put($this->stateCacheKey($nonce), true, now()->addMinutes(self::STATE_TTL_MINUTES));
+        session(['ghl_oauth_state' => $state, 'ghl_oauth_state_nonce' => $nonce]);
 
         return $state;
     }
@@ -111,14 +114,21 @@ class GhlOAuthService
             return false;
         }
 
+        $parsedNonce = $this->extractNonceFromSignedState($state);
+        if ($parsedNonce !== null && Cache::pull($this->stateCacheKey($parsedNonce)) === true) {
+            session()->forget(['ghl_oauth_state', 'ghl_oauth_state_nonce']);
+
+            return true;
+        }
+
         if (Cache::pull($this->stateCacheKey($state)) === true) {
-            session()->forget('ghl_oauth_state');
+            session()->forget(['ghl_oauth_state', 'ghl_oauth_state_nonce']);
 
             return true;
         }
 
         $expected = session('ghl_oauth_state');
-        session()->forget('ghl_oauth_state');
+        session()->forget(['ghl_oauth_state', 'ghl_oauth_state_nonce']);
 
         return is_string($expected) && hash_equals($expected, $state);
     }
@@ -126,6 +136,63 @@ class GhlOAuthService
     private function stateCacheKey(string $state): string
     {
         return 'ghl_oauth_state:'.hash('sha256', $state);
+    }
+
+    private function signStatePayload(string $nonce): string
+    {
+        $payload = $this->base64UrlEncode(json_encode([
+            'nonce' => $nonce,
+            'issued_at' => now()->timestamp,
+        ], JSON_THROW_ON_ERROR));
+        $signature = hash_hmac('sha256', $payload, $this->stateSigningKey());
+
+        return $payload.'.'.$signature;
+    }
+
+    private function extractNonceFromSignedState(string $state): ?string
+    {
+        $parts = explode('.', $state, 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        [$payload, $signature] = $parts;
+        $expectedSignature = hash_hmac('sha256', $payload, $this->stateSigningKey());
+        if (! hash_equals($expectedSignature, $signature)) {
+            return null;
+        }
+
+        $decoded = json_decode($this->base64UrlDecode($payload), true);
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        $nonce = $decoded['nonce'] ?? null;
+        $issuedAt = $decoded['issued_at'] ?? null;
+        if (! is_string($nonce) || $nonce === '' || ! is_numeric($issuedAt)) {
+            return null;
+        }
+
+        if ((int) $issuedAt < now()->subMinutes(self::STATE_TTL_MINUTES)->timestamp) {
+            return null;
+        }
+
+        return $nonce;
+    }
+
+    private function stateSigningKey(): string
+    {
+        return (string) config('app.key');
+    }
+
+    private function base64UrlEncode(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function base64UrlDecode(string $value): string
+    {
+        return base64_decode(strtr($value, '-_', '+/'), true) ?: '';
     }
 
     private function refreshToken(GhlOauthToken $token): GhlOauthToken

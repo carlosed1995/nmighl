@@ -18,7 +18,6 @@ Route::redirect('/', '/login');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/oauth/connect', [GhlOAuthController::class, 'connect'])->name('oauth.connect');
-    Route::get('/oauth/callback', [GhlOAuthController::class, 'callback'])->name('oauth.callback');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/merchant-management', [DashboardController::class, 'index'])->name('merchant-management');
@@ -36,6 +35,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/reporting', [ReportingController::class, 'index'])->name('reporting');
     Route::get('/account-settings', [AccountSettingsController::class, 'index'])->name('account-settings');
 });
+
+Route::get('/oauth/callback', [GhlOAuthController::class, 'callback'])->name('oauth.callback');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\GhlOAuthService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -25,9 +26,22 @@ class GhlOAuthController extends Controller
     {
         $state = $request->query('state');
         $code = (string) $request->query('code', '');
+        $hasLocalStateContext = $request->session()->has('ghl_oauth_state')
+            || $request->session()->has('ghl_oauth_state_nonce');
+        $stateWasProvided = is_string($state) && $state !== '';
 
-        if (! $this->ghlOAuthService->validateState(is_string($state) ? $state : null)) {
-            return redirect()->route('clients')->with('error', 'Invalid OAuth state.');
+        // Support both OAuth entry points:
+        // 1) App-initiated (/oauth/connect): state must validate.
+        // 2) Marketplace install-initiated: callback may not carry local state context.
+        if ($stateWasProvided || $hasLocalStateContext) {
+            if (! $this->ghlOAuthService->validateState($stateWasProvided ? $state : null)) {
+                return redirect()->route('clients')->with('error', 'Invalid OAuth state.');
+            }
+        } else {
+            Log::info('GHL OAuth callback without local state context (marketplace-initiated flow).', [
+                'path' => $request->path(),
+                'has_code' => $code !== '',
+            ]);
         }
 
         if ($code === '') {
