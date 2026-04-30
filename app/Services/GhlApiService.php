@@ -163,6 +163,93 @@ class GhlApiService
         return $contacts;
     }
 
+    public function createContact(string $locationId, array $payload = []): array
+    {
+        $name = trim((string) ($payload['name'] ?? ''));
+        $firstName = $name !== '' ? $name : 'Customer';
+        $lastName = '';
+        if (str_contains($firstName, ' ')) {
+            $parts = preg_split('/\s+/', $firstName, 2);
+            $firstName = (string) ($parts[0] ?? $firstName);
+            $lastName = (string) ($parts[1] ?? '');
+        }
+
+        $requestPayload = array_filter([
+            'locationId' => $locationId,
+            'firstName' => $firstName,
+            'lastName' => $lastName !== '' ? $lastName : null,
+            'email' => $payload['email'] ?? null,
+            'phone' => $payload['phone'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $response = $this->request(null, $locationId)->post('/contacts/', $requestPayload);
+        if (! $response->successful()) {
+            $detail = (string) ($response->json('message') ?? $response->json('error') ?? trim((string) $response->body()));
+            throw new RuntimeException('Failed to create GHL contact (status '.$response->status().'). '.$detail);
+        }
+
+        $parsed = $response->json();
+        $contact = $parsed['contact'] ?? $parsed['data']['contact'] ?? $parsed['data'] ?? $parsed;
+        if (! is_array($contact) || $contact === []) {
+            throw new RuntimeException('Failed to create GHL contact: empty response payload.');
+        }
+
+        return $contact;
+    }
+
+    public function createInvoice(string $locationId, array $payload = []): array
+    {
+        $amount = $this->normalizeAmount($payload['amount'] ?? null);
+        if ($amount === null || $amount <= 0) {
+            throw new RuntimeException('Cannot create GHL invoice: amount is required.');
+        }
+
+        $currency = strtoupper(trim((string) ($payload['currency'] ?? 'USD')));
+        $contactId = trim((string) ($payload['contact_id'] ?? ''));
+        if ($contactId === '') {
+            throw new RuntimeException('Cannot create GHL invoice: contact_id is required.');
+        }
+
+        $description = trim((string) ($payload['description'] ?? 'Payment from iProcess'));
+        $title = trim((string) ($payload['title'] ?? 'Invoice'));
+        $name = trim((string) ($payload['name'] ?? 'Invoice'));
+
+        $requestPayload = [
+            'altId' => $locationId,
+            'altType' => 'location',
+            'name' => $name,
+            'title' => $title,
+            'currency' => $currency !== '' ? $currency : 'USD',
+            'contactId' => $contactId,
+            'description' => $description,
+            'invoiceItems' => [[
+                'name' => $description,
+                'description' => $description,
+                'amount' => $amount,
+                'qty' => 1,
+                'currency' => $currency !== '' ? $currency : 'USD',
+                'type' => 'one_time',
+            ]],
+        ];
+
+        $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
+        $response = $this->request($version, $locationId)
+            ->post($this->withLocationQuery('/invoices/', $locationId), $requestPayload);
+
+        if (! $response->successful()) {
+            $detail = (string) ($response->json('message') ?? $response->json('error') ?? trim((string) $response->body()));
+            throw new RuntimeException('Failed to create GHL invoice (status '.$response->status().'). '.$detail);
+        }
+
+        $parsed = $response->json();
+        $invoice = $parsed['invoice'] ?? $parsed['data']['invoice'] ?? $parsed['data'] ?? $parsed;
+        if (! is_array($invoice) || $invoice === []) {
+            throw new RuntimeException('Failed to create GHL invoice: empty response payload.');
+        }
+
+        return $invoice;
+    }
+
     public function recordOrderPayment(string $orderId, array $payload = []): void
     {
         $locationId = $this->resolveLocationId($payload);

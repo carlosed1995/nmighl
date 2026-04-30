@@ -61,4 +61,9 @@ return [
         'invoice_fallback_email' => env('NMI_INVOICE_FALLBACK_EMAIL') ?: 'noreply@example.com',
     ],
 
+    'iprocess' => [
+        'webhook_secret' => env('IPROCESS_WEBHOOK_SECRET'),
+        'default_location_id' => env('IPROCESS_DEFAULT_LOCATION_ID'),
+    ],
+
 ];

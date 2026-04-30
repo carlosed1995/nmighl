@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnlinePaymentsController;
 use App\Http\Controllers\InPersonPaymentsController;
+use App\Http\Controllers\IprocessWebhookController;
 use App\Http\Controllers\ClientsGhlController;
 use App\Http\Controllers\GhlBridgeWebhookController;
 use App\Http\Controllers\GhlOAuthController;
@@ -51,6 +52,9 @@ Route::post('/webhooks/nmi', NmiWebhookController::class)
 Route::post('/webhooks/ghl/orders', GhlBridgeWebhookController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('webhooks.ghl.orders');
+Route::post('/webhooks/iprocess/payments', IprocessWebhookController::class)
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('webhooks.iprocess.payments');
 Route::post('/marketplace/workflows/subscription', MarketplaceWorkflowSubscriptionController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('marketplace.workflows.subscription');
