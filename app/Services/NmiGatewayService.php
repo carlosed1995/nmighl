@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\GhlClient;
+use App\Models\GhlLocation;
+use App\Models\GhlOauthToken;
 use App\Models\NmiPaymentOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -328,7 +331,10 @@ class NmiGatewayService
         $event = strtolower((string) (data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? ''));
         $status = $this->resolveWebhookStatus($event, $normalizedStatus, $responseCode, $responseText);
 
-        if (! $order && config('services.nmi.auto_create_from_webhook', false) && $status === NmiPaymentOrder::STATUS_APPROVED) {
+        $allowAutoCreate = config('services.nmi.auto_create_from_webhook', false)
+            || config('services.iprocess.enable_from_nmi_webhook', false);
+
+        if (! $order && $allowAutoCreate && $status === NmiPaymentOrder::STATUS_APPROVED) {
             $order = NmiPaymentOrder::query()->create([
                 'amount' => $this->extractWebhookAmount($payload),
                 'currency' => $this->extractWebhookCurrency($payload),
@@ -369,7 +375,14 @@ class NmiGatewayService
         $order->save();
 
         if ($status === NmiPaymentOrder::STATUS_APPROVED) {
-            $this->syncApprovedPaymentToGhl($order);
+            if (($order->ghl_order_id || $order->ghl_invoice_id)) {
+                $this->syncApprovedPaymentToGhl($order);
+            } elseif (
+                $order->source === 'nmi_webhook'
+                && config('services.iprocess.enable_from_nmi_webhook', false)
+            ) {
+                $this->syncImportedApprovedPaymentToGhl($order, $payload);
+            }
         }
 
         return $order;
@@ -612,5 +625,171 @@ class NmiGatewayService
             || str_contains($message, 'forbidden resource')
             || str_contains($message, 'status 404')
             || str_contains($message, 'not found');
+    }
+
+    private function syncImportedApprovedPaymentToGhl(NmiPaymentOrder $order, array $payload): void
+    {
+        try {
+            $locationId = $this->resolveImportedLocationId($order, $payload);
+            if ($locationId === '') {
+                throw new RuntimeException('Cannot sync imported payment: missing GHL location id.');
+            }
+
+            $location = GhlLocation::query()->firstOrCreate(
+                ['ghl_id' => $locationId],
+                ['name' => 'Imported location '.$locationId]
+            );
+
+            $client = $this->resolveOrCreateImportedClient($location, $payload);
+            if (! $client || $client->ghl_contact_id === null || trim((string) $client->ghl_contact_id) === '') {
+                throw new RuntimeException('Cannot sync imported payment: missing GHL contact id.');
+            }
+
+            $description = trim((string) (
+                data_get($payload, 'event_body.order_description')
+                ?? data_get($payload, 'transaction.order_description')
+                ?? data_get($payload, 'description')
+                ?? ('Imported payment '.$order->nmi_transaction_id)
+            ));
+
+            $invoice = $this->ghlApiService->createInvoice($locationId, [
+                'contact_id' => $client->ghl_contact_id,
+                'amount' => $order->amount,
+                'currency' => $order->currency,
+                'description' => $description,
+                'title' => 'Invoice',
+                'name' => 'New Invoice',
+            ]);
+
+            $invoiceId = trim((string) ($invoice['id'] ?? $invoice['_id'] ?? ''));
+            if ($invoiceId === '') {
+                throw new RuntimeException('GHL createInvoice response did not include invoice id.');
+            }
+
+            $this->ghlApiService->recordInvoicePayment($invoiceId, [
+                'amount' => $order->amount,
+                'transaction_id' => $order->nmi_transaction_id,
+                'location_id' => $locationId,
+                'notes' => 'Payment recorded from imported NMI webhook',
+                'mode' => 'card',
+                'source' => 'nmi-webhook-import',
+            ]);
+
+            $order->fill([
+                'ghl_client_id' => $client->id,
+                'ghl_contact_id' => $client->ghl_contact_id,
+                'ghl_location_id' => $locationId,
+                'ghl_invoice_id' => $invoiceId,
+                'synced_to_ghl_at' => now(),
+                'ghl_sync_error' => null,
+            ]);
+            $order->save();
+
+            Log::info('Imported NMI payment synced to GHL', [
+                'order_id' => $order->id,
+                'ghl_invoice_id' => $invoiceId,
+                'ghl_contact_id' => $client->ghl_contact_id,
+                'ghl_location_id' => $locationId,
+            ]);
+        } catch (\Throwable $exception) {
+            $order->ghl_sync_error = $exception->getMessage();
+            $order->save();
+
+            Log::warning('Failed syncing imported NMI payment to GHL', [
+                'order_id' => $order->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveImportedLocationId(NmiPaymentOrder $order, array $payload): string
+    {
+        return trim((string) (
+            $order->ghl_location_id
+            ?? data_get($payload, 'locationId')
+            ?? data_get($payload, 'location_id')
+            ?? data_get($payload, 'event_body.locationId')
+            ?? data_get($payload, 'event_body.location_id')
+            ?? data_get($payload, 'event_body.customData.locationId')
+            ?? config('services.iprocess.default_location_id')
+            ?? GhlOauthToken::query()->latest('id')->value('location_id')
+            ?? ''
+        ));
+    }
+
+    private function resolveOrCreateImportedClient(GhlLocation $location, array $payload): ?GhlClient
+    {
+        $ghlContactId = trim((string) (
+            data_get($payload, 'contactId')
+            ?? data_get($payload, 'contact_id')
+            ?? data_get($payload, 'event_body.contactId')
+            ?? data_get($payload, 'event_body.contact_id')
+            ?? ''
+        ));
+        $email = strtolower(trim((string) (
+            data_get($payload, 'email')
+            ?? data_get($payload, 'customer.email')
+            ?? data_get($payload, 'event_body.email')
+            ?? data_get($payload, 'event_body.customer.email')
+            ?? ''
+        )));
+        $phone = trim((string) (
+            data_get($payload, 'phone')
+            ?? data_get($payload, 'customer.phone')
+            ?? data_get($payload, 'event_body.phone')
+            ?? data_get($payload, 'event_body.customer.phone')
+            ?? ''
+        ));
+        $name = trim((string) (
+            data_get($payload, 'name')
+            ?? data_get($payload, 'customer.name')
+            ?? data_get($payload, 'event_body.name')
+            ?? data_get($payload, 'event_body.customer.name')
+            ?? 'Imported customer'
+        ));
+
+        $query = GhlClient::query()->where('ghl_location_id', $location->id);
+        if ($ghlContactId !== '') {
+            $found = (clone $query)->where('ghl_contact_id', $ghlContactId)->first();
+            if ($found) {
+                return $found;
+            }
+        }
+        if ($email !== '') {
+            $found = (clone $query)->whereRaw('LOWER(email) = ?', [$email])->first();
+            if ($found) {
+                return $found;
+            }
+        }
+        if ($phone !== '') {
+            $found = (clone $query)->where('phone', $phone)->first();
+            if ($found) {
+                return $found;
+            }
+        }
+
+        $contact = $this->ghlApiService->createContact($location->ghl_id, [
+            'name' => $name,
+            'email' => $email !== '' ? $email : null,
+            'phone' => $phone !== '' ? $phone : null,
+        ]);
+
+        $newContactId = trim((string) ($contact['id'] ?? $contact['_id'] ?? $ghlContactId));
+        if ($newContactId === '') {
+            throw new RuntimeException('GHL contact creation returned no contact id.');
+        }
+
+        return GhlClient::query()->updateOrCreate(
+            [
+                'ghl_location_id' => $location->id,
+                'ghl_contact_id' => $newContactId,
+            ],
+            [
+                'name' => (string) ($contact['name'] ?? $name),
+                'email' => (string) ($contact['email'] ?? ($email !== '' ? $email : null)),
+                'phone' => (string) ($contact['phone'] ?? ($phone !== '' ? $phone : null)),
+                'raw' => $contact,
+            ]
+        );
     }
 }

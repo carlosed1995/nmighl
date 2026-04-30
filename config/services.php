@@ -64,6 +64,7 @@ return [
     'iprocess' => [
         'webhook_secret' => env('IPROCESS_WEBHOOK_SECRET'),
         'default_location_id' => env('IPROCESS_DEFAULT_LOCATION_ID'),
+        'enable_from_nmi_webhook' => env('IPROCESS_ENABLE_FROM_NMI_WEBHOOK', false),
     ],
 
 ];
