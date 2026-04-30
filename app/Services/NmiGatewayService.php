@@ -552,10 +552,16 @@ class NmiGatewayService
                 'note' => 'Recorded from NMI bridge (Laravel).',
             ];
 
-            // Prefer order sync when both IDs are present.
-            // This matches the bridge/UI contract: invoice endpoint is only fallback when order ID is absent.
             if ($ghlOrderId !== '') {
-                $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
+                try {
+                    $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
+                } catch (\Throwable $orderSyncException) {
+                    if ($ghlInvoiceId === '' || ! $this->shouldFallbackToInvoice($orderSyncException)) {
+                        throw $orderSyncException;
+                    }
+
+                    $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
+                }
             } elseif ($ghlInvoiceId !== '') {
                 $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
             }
@@ -573,5 +579,15 @@ class NmiGatewayService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function shouldFallbackToInvoice(\Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'status 403')
+            || str_contains($message, 'forbidden resource')
+            || str_contains($message, 'status 404')
+            || str_contains($message, 'not found');
     }
 }

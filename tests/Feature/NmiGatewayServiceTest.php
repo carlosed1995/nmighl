@@ -59,6 +59,52 @@ class NmiGatewayServiceTest extends TestCase
         $this->assertNull($order->ghl_sync_error);
     }
 
+    public function test_approved_webhook_falls_back_to_invoice_when_order_sync_forbidden(): void
+    {
+        config()->set('services.nmi.sync_approved_to_ghl', true);
+
+        $order = NmiPaymentOrder::query()->create([
+            'amount' => 66.66,
+            'currency' => 'USD',
+            'description' => 'Order ID not accessible, fallback invoice',
+            'status' => NmiPaymentOrder::STATUS_PENDING,
+            'source' => 'ghl_webhook',
+            'ghl_order_id' => '000039',
+            'ghl_invoice_id' => '69f2dc5fa82c6bc395797e',
+            'nmi_order_id' => 'ghl-order-000039',
+            'nmi_invoice_id' => 'NMI-INV-FALLBACK-1',
+        ]);
+
+        $ghlApiMock = $this->mock(GhlApiService::class);
+        $ghlApiMock
+            ->shouldReceive('recordOrderPayment')
+            ->once()
+            ->andThrow(new RuntimeException('Failed to record payment in GHL order 000039 (status 403). Forbidden resource'));
+        $ghlApiMock
+            ->shouldReceive('recordInvoicePayment')
+            ->once()
+            ->with('69f2dc5fa82c6bc395797e', \Mockery::on(function (array $payload): bool {
+                return $payload['amount'] == 66.66
+                    && $payload['transaction_id'] === 'TXN-FALLBACK-1';
+            }));
+
+        $service = app(NmiGatewayService::class);
+        $request = Request::create('/webhooks/nmi', 'POST', [
+            'event' => 'invoice.paid',
+            'transactionid' => 'TXN-FALLBACK-1',
+            'orderid' => 'ghl-order-000039',
+            'invoice_id' => 'NMI-INV-FALLBACK-1',
+        ]);
+
+        $result = $service->handleWebhook($request);
+
+        $this->assertNotNull($result);
+        $order->refresh();
+        $this->assertSame(NmiPaymentOrder::STATUS_APPROVED, $order->status);
+        $this->assertNotNull($order->synced_to_ghl_at);
+        $this->assertNull($order->ghl_sync_error);
+    }
+
     public function test_approved_webhook_calls_record_invoice_payment_when_ghl_invoice_id_set(): void
     {
         config()->set('services.nmi.sync_approved_to_ghl', true);
