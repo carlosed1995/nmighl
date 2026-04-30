@@ -76,7 +76,14 @@ class GhlOAuthService
 
         $token = GhlOauthToken::query()->latestValid()->first();
 
+        // Prefer OAuth token whenever available.
         if (! $token) {
+            // Fallback to server PIT only when OAuth is not connected yet.
+            $serverPit = (string) config('services.ghl.agency_token');
+            if ($serverPit !== '') {
+                return $serverPit;
+            }
+
             throw new RuntimeException('No OAuth token saved. Connect the app first.');
         }
 
