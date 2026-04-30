@@ -7,6 +7,7 @@ use App\Http\Controllers\InPersonPaymentsController;
 use App\Http\Controllers\ClientsGhlController;
 use App\Http\Controllers\GhlBridgeWebhookController;
 use App\Http\Controllers\GhlOAuthController;
+use App\Http\Controllers\MarketplaceWorkflowSubscriptionController;
 use App\Http\Controllers\NmiWebhookController;
 use App\Http\Controllers\SalesRepsController;
 use App\Http\Controllers\ReportingController;
@@ -50,5 +51,8 @@ Route::post('/webhooks/nmi', NmiWebhookController::class)
 Route::post('/webhooks/ghl/orders', GhlBridgeWebhookController::class)
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('webhooks.ghl.orders');
+Route::post('/marketplace/workflows/subscription', MarketplaceWorkflowSubscriptionController::class)
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('marketplace.workflows.subscription');
 
 require __DIR__.'/auth.php';
