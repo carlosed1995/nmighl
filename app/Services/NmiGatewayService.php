@@ -552,10 +552,10 @@ class NmiGatewayService
                 'note' => 'Recorded from NMI bridge (Laravel).',
             ];
 
-            if ($ghlOrderId !== '') {
-                $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
-            } elseif ($ghlInvoiceId !== '') {
+            if ($ghlInvoiceId !== '') {
                 $this->ghlApiService->recordInvoicePayment($ghlInvoiceId, $paymentPayload);
+            } elseif ($ghlOrderId !== '') {
+                $this->ghlApiService->recordOrderPayment($ghlOrderId, $paymentPayload);
             }
 
             $order->synced_to_ghl_at = now();

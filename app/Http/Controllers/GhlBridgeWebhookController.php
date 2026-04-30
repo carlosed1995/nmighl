@@ -38,8 +38,17 @@ class GhlBridgeWebhookController extends Controller
             ?? data_get($normalizedPayload, 'customData.contactId')
             ?? data_get($normalizedPayload, 'contact_id')
             ?? data_get($normalizedPayload, 'contact.id')
+            ?? data_get($normalizedPayload, 'invoice.contactDetails.id')
+            ?? data_get($normalizedPayload, 'invoice._data.contactId')
             ?? ''
         );
+        $contactEmail = trim((string) (
+            data_get($normalizedPayload, 'email')
+            ?? data_get($normalizedPayload, 'contact.email')
+            ?? data_get($normalizedPayload, 'invoice.contactDetails.email')
+            ?? data_get($normalizedPayload, 'invoice._data.contactEmail')
+            ?? ''
+        ));
         $locationId = (string) (
             data_get($normalizedPayload, 'locationId')
             ?? data_get($normalizedPayload, 'customData.locationId')
@@ -83,6 +92,9 @@ class GhlBridgeWebhookController extends Controller
         $client = null;
         if ($contactId !== '') {
             $client = GhlClient::query()->where('ghl_contact_id', $contactId)->first();
+        }
+        if (! $client && $contactEmail !== '') {
+            $client = GhlClient::query()->whereRaw('LOWER(email) = ?', [strtolower($contactEmail)])->first();
         }
 
         $uniqueKey = $ghlOrderId !== ''
