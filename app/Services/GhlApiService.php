@@ -194,10 +194,16 @@ class GhlApiService
     {
         $locationId = $this->resolveLocationId($payload);
         $requestPayload = array_filter([
+            'altId' => $locationId,
+            'altType' => $locationId ? 'location' : null,
+            'mode' => $payload['mode'] ?? 'card',
             'amount' => $payload['amount'] ?? null,
-            'transactionId' => $payload['transaction_id'] ?? null,
-            'note' => $payload['note'] ?? null,
-        ], fn ($value) => $value !== null && $value !== '');
+            'notes' => $payload['notes'] ?? $payload['note'] ?? null,
+            'meta' => array_filter([
+                'source' => $payload['source'] ?? 'nmi-bridge',
+                'transactionId' => $payload['transaction_id'] ?? null,
+            ], fn ($value) => $value !== null && $value !== ''),
+        ], fn ($value) => $value !== null && $value !== '' && $value !== []);
 
         $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
         $response = $this->request($version, $locationId)
