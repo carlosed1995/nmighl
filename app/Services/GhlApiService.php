@@ -7,6 +7,7 @@ use App\Models\GhlUserCredential;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class GhlApiService
@@ -175,6 +176,14 @@ class GhlApiService
             ->post($this->withLocationQuery('/payments/orders/'.$orderId.'/record-payment', $locationId), $requestPayload);
 
         if (! $response->successful()) {
+            Log::warning('GHL order record-payment failed', [
+                'order_id' => $orderId,
+                'location_id' => $locationId,
+                'request_payload' => $requestPayload,
+                'status' => $response->status(),
+                'response_body' => $response->body(),
+            ]);
+
             $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
             if ($detail === '') {
                 $detail = trim((string) $response->body());
@@ -210,6 +219,14 @@ class GhlApiService
             ->post($this->withLocationQuery('/invoices/'.$invoiceId.'/record-payment', $locationId), $requestPayload);
 
         if (! $response->successful()) {
+            Log::warning('GHL invoice record-payment failed', [
+                'invoice_id' => $invoiceId,
+                'location_id' => $locationId,
+                'request_payload' => $requestPayload,
+                'status' => $response->status(),
+                'response_body' => $response->body(),
+            ]);
+
             $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
             if ($detail === '') {
                 $detail = trim((string) $response->body());

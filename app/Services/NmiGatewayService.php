@@ -545,6 +545,20 @@ class NmiGatewayService
             return;
         }
 
+        // Record-payment in GHL should always include an NMI transaction reference.
+        if (! is_string($order->nmi_transaction_id) || trim($order->nmi_transaction_id) === '') {
+            $order->ghl_sync_error = 'Skipped GHL sync: missing NMI transaction id.';
+            $order->save();
+
+            Log::warning('Skipped syncing NMI payment to GHL due to missing transaction id', [
+                'order_id' => $order->id,
+                'ghl_order_id' => $order->ghl_order_id,
+                'ghl_invoice_id' => $order->ghl_invoice_id,
+            ]);
+
+            return;
+        }
+
         try {
             $paymentPayload = [
                 'amount' => $order->amount,
@@ -552,6 +566,14 @@ class NmiGatewayService
                 'note' => 'Recorded from NMI bridge (Laravel).',
                 'location_id' => $order->ghl_location_id,
             ];
+
+            Log::info('Attempting to sync approved NMI payment to GHL', [
+                'order_id' => $order->id,
+                'ghl_order_id' => $ghlOrderId,
+                'ghl_invoice_id' => $ghlInvoiceId,
+                'ghl_location_id' => $order->ghl_location_id,
+                'payload' => $paymentPayload,
+            ]);
 
             if ($ghlOrderId !== '') {
                 try {
