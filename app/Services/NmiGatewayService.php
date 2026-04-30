@@ -550,6 +550,7 @@ class NmiGatewayService
                 'amount' => $order->amount,
                 'transaction_id' => $order->nmi_transaction_id,
                 'note' => 'Recorded from NMI bridge (Laravel).',
+                'location_id' => $order->ghl_location_id,
             ];
 
             if ($ghlOrderId !== '') {
