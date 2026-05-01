@@ -182,7 +182,7 @@ class GhlApiService
             'phone' => $payload['phone'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $response = $this->request(null, $locationId)->post('/contacts/', $requestPayload);
+        $response = $this->request(null, $locationId, true)->post('/contacts/', $requestPayload);
         if (! $response->successful()) {
             $detail = (string) ($response->json('message') ?? $response->json('error') ?? trim((string) $response->body()));
             throw new RuntimeException('Failed to create GHL contact (status '.$response->status().'). '.$detail);
@@ -233,7 +233,7 @@ class GhlApiService
         ];
 
         $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
-        $response = $this->request($version, $locationId)
+        $response = $this->request($version, $locationId, true)
             ->post($this->withLocationQuery('/invoices/', $locationId), $requestPayload);
 
         if (! $response->successful()) {
@@ -260,7 +260,7 @@ class GhlApiService
             'note' => $payload['note'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $response = $this->request(null, $locationId)
+        $response = $this->request(null, $locationId, true)
             ->post($this->withLocationQuery('/payments/orders/'.$orderId.'/record-payment', $locationId), $requestPayload);
 
         if (! $response->successful()) {
@@ -304,7 +304,7 @@ class GhlApiService
         ], fn ($value) => $value !== null && $value !== '' && $value !== []);
 
         $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
-        $response = $this->request($version, $locationId)
+        $response = $this->request($version, $locationId, true)
             ->post($this->withLocationQuery('/invoices/'.$invoiceId.'/record-payment', $locationId), $requestPayload);
 
         if (! $response->successful()) {
@@ -326,15 +326,9 @@ class GhlApiService
         }
     }
 
-    private function request(?string $version, ?string $locationId = null): PendingRequest
+    private function request(?string $version, ?string $locationId = null, bool $preferPrivateIntegrationToken = false): PendingRequest
     {
-        $token = '';
-
-        try {
-            $token = $this->ghlOAuthService->getAccessToken();
-        } catch (\Throwable) {
-            $token = (string) config('services.ghl.agency_token');
-        }
+        $token = $this->resolveAccessToken($preferPrivateIntegrationToken);
 
         if ($token === '') {
             throw new RuntimeException('Missing GHL token. Connect OAuth or define GHL_AGENCY_TOKEN.');
@@ -355,6 +349,30 @@ class GhlApiService
         return Http::baseUrl((string) config('services.ghl.base_url'))
             ->withHeaders($headers)
             ->timeout(30);
+    }
+
+    private function resolveAccessToken(bool $preferPrivateIntegrationToken = false): string
+    {
+        $privateIntegrationToken = trim((string) config('services.ghl.agency_token'));
+        if ($preferPrivateIntegrationToken && $privateIntegrationToken !== '') {
+            return $privateIntegrationToken;
+        }
+
+        try {
+            $token = $this->ghlOAuthService->getAccessToken();
+        } catch (\Throwable) {
+            $token = '';
+        }
+
+        if (is_string($token) && $token !== '') {
+            return $token;
+        }
+
+        if ($privateIntegrationToken !== '') {
+            return $privateIntegrationToken;
+        }
+
+        throw new RuntimeException('Missing GHL token. Connect OAuth or define GHL_AGENCY_TOKEN.');
     }
 
     private function resolveLocationId(array $payload): ?string

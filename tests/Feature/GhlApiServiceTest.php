@@ -63,4 +63,31 @@ class GhlApiServiceTest extends TestCase
                 && $request->hasHeader('Version', '2021-07-28');
         });
     }
+
+    public function test_create_contact_prefers_private_integration_token_for_location_scoped_calls(): void
+    {
+        config()->set('services.ghl.base_url', 'https://services.leadconnectorhq.com');
+        config()->set('services.ghl.agency_token', 'pit-subaccount-token');
+
+        $oauthService = $this->mock(GhlOAuthService::class);
+        $oauthService->shouldReceive('getAccessToken')->andReturn('oauth-token-should-not-be-used');
+
+        Http::fake([
+            'https://services.leadconnectorhq.com/*' => Http::response([
+                'contact' => ['id' => 'contact-1', 'firstName' => 'Carlos'],
+            ], 201),
+        ]);
+
+        $service = app(GhlApiService::class);
+        $service->createContact('loc-123', [
+            'name' => 'Carlos Test',
+            'email' => 'carlos@example.com',
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://services.leadconnectorhq.com/contacts/'
+                && $request->hasHeader('Authorization', 'Bearer pit-subaccount-token')
+                && $request['locationId'] === 'loc-123';
+        });
+    }
 }
