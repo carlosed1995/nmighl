@@ -69,6 +69,9 @@ return [
         'sync_invoice_to_ghl' => env('IPROCESS_SYNC_INVOICE_TO_GHL', true),
         // Cuando false, crea invoice pero omite record-payment (no cambia a paid en GHL).
         'mark_invoice_paid_in_ghl' => env('IPROCESS_MARK_INVOICE_PAID_IN_GHL', true),
+        // Fallbacks para createInvoice cuando payload/contacto no trae email o telefono valido E.164.
+        'invoice_fallback_email' => env('IPROCESS_INVOICE_FALLBACK_EMAIL'),
+        'invoice_fallback_phone' => env('IPROCESS_INVOICE_FALLBACK_PHONE'),
         'fallback_ghl_contact_id' => env('IPROCESS_FALLBACK_GHL_CONTACT_ID'),
     ],
 

@@ -215,8 +215,18 @@ class GhlApiService
         $issueDate = trim((string) ($payload['issue_date'] ?? now()->format('Y-m-d')));
         $businessName = trim((string) ($payload['business_name'] ?? config('app.name', 'USA Payments')));
         $contactName = trim((string) ($payload['contact_name'] ?? 'Customer'));
-        $contactEmail = trim((string) ($payload['contact_email'] ?? ''));
-        $contactPhone = trim((string) ($payload['contact_phone'] ?? ''));
+        $contactEmail = $this->normalizeEmail((string) ($payload['contact_email'] ?? ''));
+        $contactPhone = $this->normalizePhoneE164((string) ($payload['contact_phone'] ?? ''));
+
+        if ($contactEmail === '') {
+            $contactEmail = $this->normalizeEmail((string) config('services.iprocess.invoice_fallback_email', ''));
+        }
+        if ($contactPhone === '') {
+            $contactPhone = $this->normalizePhoneE164((string) config('services.iprocess.invoice_fallback_phone', ''));
+        }
+        if ($contactEmail === '' || $contactPhone === '') {
+            throw new RuntimeException('Cannot create GHL invoice: valid contact email and E.164 phone are required.');
+        }
 
         $requestPayload = [
             'altId' => $locationId,
@@ -230,8 +240,9 @@ class GhlApiService
             'contactDetails' => array_filter([
                 'id' => $contactId,
                 'name' => $contactName,
-                'email' => $contactEmail !== '' ? $contactEmail : null,
-                'phone' => $contactPhone !== '' ? $contactPhone : null,
+                'email' => $contactEmail,
+                'phone' => $contactPhone,
+                'phoneNo' => $contactPhone,
             ], fn ($value) => $value !== null && $value !== ''),
             'items' => [[
                 'name' => $description,
@@ -445,5 +456,33 @@ class GhlApiService
         }
 
         return implode(' | ', $parts);
+    }
+
+    private function normalizeEmail(string $email): string
+    {
+        $candidate = strtolower(trim($email));
+        if ($candidate === '' || ! filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+            return '';
+        }
+
+        return $candidate;
+    }
+
+    private function normalizePhoneE164(string $phone): string
+    {
+        $candidate = trim($phone);
+        if ($candidate === '') {
+            return '';
+        }
+
+        $normalized = preg_replace('/[^\d+]/', '', $candidate) ?? '';
+        if ($normalized === '') {
+            return '';
+        }
+        if (! str_starts_with($normalized, '+')) {
+            $normalized = '+'.$normalized;
+        }
+
+        return preg_match('/^\+[1-9]\d{6,14}$/', $normalized) === 1 ? $normalized : '';
     }
 }

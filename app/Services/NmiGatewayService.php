@@ -660,6 +660,9 @@ class NmiGatewayService
 
             $invoice = $this->ghlApiService->createInvoice($locationId, [
                 'contact_id' => $client->ghl_contact_id,
+                'contact_name' => $client->name,
+                'contact_email' => $client->email,
+                'contact_phone' => $client->phone,
                 'amount' => $order->amount,
                 'currency' => $order->currency,
                 'description' => $description,
