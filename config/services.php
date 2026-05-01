@@ -65,6 +65,8 @@ return [
         'webhook_secret' => env('IPROCESS_WEBHOOK_SECRET'),
         'default_location_id' => env('IPROCESS_DEFAULT_LOCATION_ID'),
         'enable_from_nmi_webhook' => env('IPROCESS_ENABLE_FROM_NMI_WEBHOOK', false),
+        // Temporal/operativo: permite probar iProcess -> contacto sin crear/sync invoice en GHL.
+        'sync_invoice_to_ghl' => env('IPROCESS_SYNC_INVOICE_TO_GHL', true),
         'fallback_ghl_contact_id' => env('IPROCESS_FALLBACK_GHL_CONTACT_ID'),
     ],
 

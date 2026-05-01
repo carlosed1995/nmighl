@@ -93,6 +93,19 @@ class IprocessPaymentService
             ]
         );
 
+        if (! (bool) config('services.iprocess.sync_invoice_to_ghl', true)) {
+            $order->ghl_sync_error = null;
+            $order->save();
+
+            Log::info('iProcess webhook configured to skip GHL invoice sync', [
+                'transaction_id' => $transactionId,
+                'order_id' => $order->id,
+                'ghl_location_id' => $locationId,
+            ]);
+
+            return $order;
+        }
+
         try {
             $invoice = $this->ghlApiService->createInvoice($locationId, [
                 'contact_id' => $client?->ghl_contact_id,
