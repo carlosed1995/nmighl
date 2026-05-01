@@ -67,6 +67,8 @@ return [
         'enable_from_nmi_webhook' => env('IPROCESS_ENABLE_FROM_NMI_WEBHOOK', false),
         // Temporal/operativo: permite probar iProcess -> contacto sin crear/sync invoice en GHL.
         'sync_invoice_to_ghl' => env('IPROCESS_SYNC_INVOICE_TO_GHL', true),
+        // Cuando false, crea invoice pero omite record-payment (no cambia a paid en GHL).
+        'mark_invoice_paid_in_ghl' => env('IPROCESS_MARK_INVOICE_PAID_IN_GHL', true),
         'fallback_ghl_contact_id' => env('IPROCESS_FALLBACK_GHL_CONTACT_ID'),
     ],
 

@@ -184,7 +184,7 @@ class GhlApiService
 
         $response = $this->request(null, $locationId, true)->post('/contacts/', $requestPayload);
         if (! $response->successful()) {
-            $detail = (string) ($response->json('message') ?? $response->json('error') ?? trim((string) $response->body()));
+            $detail = $this->extractErrorDetail($response);
             throw new RuntimeException('Failed to create GHL contact (status '.$response->status().'). '.$detail);
         }
 
@@ -248,7 +248,7 @@ class GhlApiService
             ->post($this->withLocationQuery('/invoices/', $locationId), $requestPayload);
 
         if (! $response->successful()) {
-            $detail = (string) ($response->json('message') ?? $response->json('error') ?? trim((string) $response->body()));
+            $detail = $this->extractErrorDetail($response);
             throw new RuntimeException('Failed to create GHL invoice (status '.$response->status().'). '.$detail);
         }
 
@@ -283,10 +283,7 @@ class GhlApiService
                 'response_body' => $response->body(),
             ]);
 
-            $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
-            if ($detail === '') {
-                $detail = trim((string) $response->body());
-            }
+            $detail = $this->extractErrorDetail($response);
             $detail = $detail !== '' ? ' '.$detail : '';
 
             throw new RuntimeException('Failed to record payment in GHL order '.$orderId.' (status '.$response->status().').'.$detail);
@@ -327,10 +324,7 @@ class GhlApiService
                 'response_body' => $response->body(),
             ]);
 
-            $detail = (string) ($response->json('message') ?? $response->json('error') ?? '');
-            if ($detail === '') {
-                $detail = trim((string) $response->body());
-            }
+            $detail = $this->extractErrorDetail($response);
             $detail = $detail !== '' ? ' '.$detail : '';
 
             throw new RuntimeException('Failed to record payment in GHL invoice '.$invoiceId.' (status '.$response->status().').'.$detail);
@@ -424,5 +418,32 @@ class GhlApiService
         }
 
         return round($numeric, 2);
+    }
+
+    private function extractErrorDetail(\Illuminate\Http\Client\Response $response): string
+    {
+        $message = trim((string) ($response->json('message') ?? ''));
+        $error = $response->json('error');
+
+        $parts = [];
+        if ($message !== '') {
+            $parts[] = $message;
+        }
+        if (is_array($error) && $error !== []) {
+            $parts[] = implode(' | ', array_map(fn ($item) => (string) $item, $error));
+        } elseif (is_string($error) && trim($error) !== '') {
+            $parts[] = trim($error);
+        }
+
+        $traceId = trim((string) ($response->json('traceId') ?? ''));
+        if ($traceId !== '') {
+            $parts[] = 'traceId='.$traceId;
+        }
+
+        if ($parts === []) {
+            return trim((string) $response->body());
+        }
+
+        return implode(' | ', $parts);
     }
 }

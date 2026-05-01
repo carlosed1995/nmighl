@@ -152,17 +152,19 @@ class IprocessPaymentService
                 throw new RuntimeException('GHL createInvoice response did not include invoice id.');
             }
 
-            $this->ghlApiService->recordInvoicePayment($invoiceId, [
-                'amount' => $amount,
-                'transaction_id' => $transactionId,
-                'location_id' => $locationId,
-                'notes' => 'Payment recorded from iProcess webhook',
-                'mode' => 'card',
-                'source' => 'iprocess-webhook',
-            ]);
+            if ((bool) config('services.iprocess.mark_invoice_paid_in_ghl', true)) {
+                $this->ghlApiService->recordInvoicePayment($invoiceId, [
+                    'amount' => $amount,
+                    'transaction_id' => $transactionId,
+                    'location_id' => $locationId,
+                    'notes' => 'Payment recorded from iProcess webhook',
+                    'mode' => 'card',
+                    'source' => 'iprocess-webhook',
+                ]);
+            }
 
             $order->ghl_invoice_id = $invoiceId;
-            $order->synced_to_ghl_at = now();
+            $order->synced_to_ghl_at = (bool) config('services.iprocess.mark_invoice_paid_in_ghl', true) ? now() : null;
             $order->ghl_sync_error = null;
             $order->save();
         } catch (\Throwable $exception) {

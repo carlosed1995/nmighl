@@ -645,6 +645,12 @@ class NmiGatewayService
                 throw new RuntimeException('Cannot sync imported payment: missing GHL contact id.');
             }
 
+            // Persist resolved mapping even before invoice sync, so failures are diagnosable from DB.
+            $order->ghl_client_id = $client->id;
+            $order->ghl_contact_id = $client->ghl_contact_id;
+            $order->ghl_location_id = $locationId;
+            $order->save();
+
             $description = trim((string) (
                 data_get($payload, 'event_body.order_description')
                 ?? data_get($payload, 'transaction.order_description')
@@ -666,21 +672,20 @@ class NmiGatewayService
                 throw new RuntimeException('GHL createInvoice response did not include invoice id.');
             }
 
-            $this->ghlApiService->recordInvoicePayment($invoiceId, [
-                'amount' => $order->amount,
-                'transaction_id' => $order->nmi_transaction_id,
-                'location_id' => $locationId,
-                'notes' => 'Payment recorded from imported NMI webhook',
-                'mode' => 'card',
-                'source' => 'nmi-webhook-import',
-            ]);
+            if ((bool) config('services.iprocess.mark_invoice_paid_in_ghl', true)) {
+                $this->ghlApiService->recordInvoicePayment($invoiceId, [
+                    'amount' => $order->amount,
+                    'transaction_id' => $order->nmi_transaction_id,
+                    'location_id' => $locationId,
+                    'notes' => 'Payment recorded from imported NMI webhook',
+                    'mode' => 'card',
+                    'source' => 'nmi-webhook-import',
+                ]);
+            }
 
             $order->fill([
-                'ghl_client_id' => $client->id,
-                'ghl_contact_id' => $client->ghl_contact_id,
-                'ghl_location_id' => $locationId,
                 'ghl_invoice_id' => $invoiceId,
-                'synced_to_ghl_at' => now(),
+                'synced_to_ghl_at' => (bool) config('services.iprocess.mark_invoice_paid_in_ghl', true) ? now() : null,
                 'ghl_sync_error' => null,
             ]);
             $order->save();
