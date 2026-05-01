@@ -96,10 +96,12 @@ class IprocessPaymentService
         try {
             $invoice = $this->ghlApiService->createInvoice($locationId, [
                 'contact_id' => $client?->ghl_contact_id,
+                'contact_name' => $client?->name,
+                'contact_email' => $client?->email,
+                'contact_phone' => $client?->phone,
                 'amount' => $amount,
                 'currency' => $currency,
                 'description' => $description,
-                'title' => 'Invoice',
                 'name' => 'New Invoice',
             ]);
             $invoiceId = (string) ($invoice['id'] ?? $invoice['_id'] ?? '');

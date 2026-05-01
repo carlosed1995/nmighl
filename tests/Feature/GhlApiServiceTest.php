@@ -90,4 +90,44 @@ class GhlApiServiceTest extends TestCase
                 && $request['locationId'] === 'loc-123';
         });
     }
+
+    public function test_create_invoice_sends_required_payload_shape_for_2023_02_21(): void
+    {
+        config()->set('services.ghl.base_url', 'https://services.leadconnectorhq.com');
+        config()->set('services.ghl.invoice_api_version', '2023-02-21');
+        config()->set('services.ghl.agency_token', 'pit-subaccount-token');
+
+        $oauthService = $this->mock(GhlOAuthService::class);
+        $oauthService->shouldReceive('getAccessToken')->andReturn('oauth-token-should-not-be-used');
+
+        Http::fake([
+            'https://services.leadconnectorhq.com/*' => Http::response([
+                'invoice' => ['id' => 'inv-123'],
+            ], 201),
+        ]);
+
+        $service = app(GhlApiService::class);
+        $service->createInvoice('loc-123', [
+            'contact_id' => 'contact-1',
+            'contact_name' => 'Carlos Test',
+            'contact_email' => 'carlos@example.com',
+            'contact_phone' => '+18181234567',
+            'amount' => 27.77,
+            'currency' => 'USD',
+            'description' => 'Test invoice',
+            'name' => 'Invoice iProcess Test',
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
+            return $request->url() === 'https://services.leadconnectorhq.com/invoices/?altId=loc-123&altType=location'
+                && $request->hasHeader('Authorization', 'Bearer pit-subaccount-token')
+                && isset($payload['businessDetails']['name'])
+                && isset($payload['contactDetails']['id'])
+                && is_array($payload['items'] ?? null)
+                && ! empty($payload['items'])
+                && isset($payload['issueDate']);
+        });
+    }
 }

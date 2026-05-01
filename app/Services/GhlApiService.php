@@ -211,24 +211,34 @@ class GhlApiService
         }
 
         $description = trim((string) ($payload['description'] ?? 'Payment from iProcess'));
-        $title = trim((string) ($payload['title'] ?? 'Invoice'));
         $name = trim((string) ($payload['name'] ?? 'Invoice'));
+        $issueDate = trim((string) ($payload['issue_date'] ?? now()->format('Y-m-d')));
+        $businessName = trim((string) ($payload['business_name'] ?? config('app.name', 'USA Payments')));
+        $contactName = trim((string) ($payload['contact_name'] ?? 'Customer'));
+        $contactEmail = trim((string) ($payload['contact_email'] ?? ''));
+        $contactPhone = trim((string) ($payload['contact_phone'] ?? ''));
 
         $requestPayload = [
             'altId' => $locationId,
             'altType' => 'location',
             'name' => $name,
-            'title' => $title,
+            'issueDate' => $issueDate,
             'currency' => $currency !== '' ? $currency : 'USD',
-            'contactId' => $contactId,
-            'description' => $description,
-            'invoiceItems' => [[
+            'businessDetails' => [
+                'name' => $businessName !== '' ? $businessName : 'USA Payments',
+            ],
+            'contactDetails' => array_filter([
+                'id' => $contactId,
+                'name' => $contactName,
+                'email' => $contactEmail !== '' ? $contactEmail : null,
+                'phone' => $contactPhone !== '' ? $contactPhone : null,
+            ], fn ($value) => $value !== null && $value !== ''),
+            'items' => [[
                 'name' => $description,
                 'description' => $description,
                 'amount' => $amount,
                 'qty' => 1,
                 'currency' => $currency !== '' ? $currency : 'USD',
-                'type' => 'one_time',
             ]],
         ];
 
