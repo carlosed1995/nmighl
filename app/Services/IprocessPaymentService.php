@@ -137,6 +137,7 @@ class IprocessPaymentService
 
         try {
             $invoice = $this->ghlApiService->createInvoice($locationId, [
+                'prefer_oauth_token' => true,
                 'contact_id' => $client?->ghl_contact_id,
                 'contact_name' => $client?->name,
                 'contact_email' => $client?->email,

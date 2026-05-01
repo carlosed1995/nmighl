@@ -243,7 +243,8 @@ class GhlApiService
         ];
 
         $version = (string) config('services.ghl.invoice_api_version', '2023-02-21');
-        $response = $this->request($version, $locationId, true)
+        $preferPrivateIntegrationToken = ! (bool) ($payload['prefer_oauth_token'] ?? false);
+        $response = $this->request($version, $locationId, $preferPrivateIntegrationToken)
             ->post($this->withLocationQuery('/invoices/', $locationId), $requestPayload);
 
         if (! $response->successful()) {

@@ -130,4 +130,35 @@ class GhlApiServiceTest extends TestCase
                 && isset($payload['issueDate']);
         });
     }
+
+    public function test_create_invoice_can_prefer_oauth_token_when_requested(): void
+    {
+        config()->set('services.ghl.base_url', 'https://services.leadconnectorhq.com');
+        config()->set('services.ghl.invoice_api_version', '2023-02-21');
+        config()->set('services.ghl.agency_token', 'pit-subaccount-token');
+
+        $oauthService = $this->mock(GhlOAuthService::class);
+        $oauthService->shouldReceive('getAccessToken')->andReturn('oauth-token-preferred');
+
+        Http::fake([
+            'https://services.leadconnectorhq.com/*' => Http::response([
+                'invoice' => ['id' => 'inv-124'],
+            ], 201),
+        ]);
+
+        $service = app(GhlApiService::class);
+        $service->createInvoice('loc-123', [
+            'prefer_oauth_token' => true,
+            'contact_id' => 'contact-1',
+            'contact_name' => 'Carlos Test',
+            'amount' => 27.77,
+            'currency' => 'USD',
+            'description' => 'Test invoice',
+            'name' => 'Invoice iProcess Test',
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            return $request->hasHeader('Authorization', 'Bearer oauth-token-preferred');
+        });
+    }
 }
