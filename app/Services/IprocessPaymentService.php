@@ -176,22 +176,20 @@ class IprocessPaymentService
         }
 
         $query = GhlClient::query()->where('ghl_location_id', $location->id);
+        $existingClient = null;
         if ($ghlContactId !== '') {
-            $found = (clone $query)->where('ghl_contact_id', $ghlContactId)->first();
-            if ($found) {
-                return $found;
-            }
+            $existingClient = (clone $query)->where('ghl_contact_id', $ghlContactId)->first();
         }
-        if ($email !== '') {
-            $found = (clone $query)->whereRaw('LOWER(email) = ?', [$email])->first();
-            if ($found) {
-                return $found;
-            }
+        if (! $existingClient && $email !== '') {
+            $existingClient = (clone $query)->whereRaw('LOWER(email) = ?', [$email])->first();
         }
-        if ($phone !== '') {
-            $found = (clone $query)->where('phone', $phone)->first();
-            if ($found) {
-                return $found;
+        if (! $existingClient && $phone !== '') {
+            $existingClient = (clone $query)->where('phone', $phone)->first();
+        }
+        if ($existingClient) {
+            $existingContactId = trim((string) $existingClient->ghl_contact_id);
+            if ($existingContactId !== '') {
+                return $existingClient;
             }
         }
 
@@ -205,17 +203,27 @@ class IprocessPaymentService
             throw new RuntimeException('GHL contact creation returned no contact id.');
         }
 
+        $attributes = [
+            'name' => (string) ($contact['name'] ?? $name),
+            'email' => (string) ($contact['email'] ?? ($email !== '' ? $email : null)),
+            'phone' => (string) ($contact['phone'] ?? ($phone !== '' ? $phone : null)),
+            'raw' => $contact,
+        ];
+
+        if ($existingClient) {
+            $existingClient->ghl_contact_id = $ghlContactId;
+            $existingClient->fill($attributes);
+            $existingClient->save();
+
+            return $existingClient;
+        }
+
         return GhlClient::query()->updateOrCreate(
             [
                 'ghl_location_id' => $location->id,
                 'ghl_contact_id' => $ghlContactId,
             ],
-            [
-                'name' => (string) ($contact['name'] ?? $name),
-                'email' => (string) ($contact['email'] ?? ($email !== '' ? $email : null)),
-                'phone' => (string) ($contact['phone'] ?? ($phone !== '' ? $phone : null)),
-                'raw' => $contact,
-            ]
+            $attributes
         );
     }
 
