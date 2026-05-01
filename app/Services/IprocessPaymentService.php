@@ -226,14 +226,30 @@ class IprocessPaymentService
             }
         }
 
-        $contact = $this->ghlApiService->createContact($location->ghl_id, [
-            'name' => $name,
-            'email' => $email !== '' ? $email : null,
-            'phone' => $phone !== '' ? $phone : null,
-        ]);
-        $ghlContactId = (string) ($contact['id'] ?? $contact['_id'] ?? $ghlContactId);
-        if ($ghlContactId === '') {
-            throw new RuntimeException('GHL contact creation returned no contact id.');
+        try {
+            $contact = $this->ghlApiService->createContact($location->ghl_id, [
+                'name' => $name,
+                'email' => $email !== '' ? $email : null,
+                'phone' => $phone !== '' ? $phone : null,
+            ]);
+            $ghlContactId = (string) ($contact['id'] ?? $contact['_id'] ?? $ghlContactId);
+            if ($ghlContactId === '') {
+                throw new RuntimeException('GHL contact creation returned no contact id.');
+            }
+        } catch (\Throwable $exception) {
+            $fallbackContactId = trim((string) config('services.iprocess.fallback_ghl_contact_id', ''));
+            if ($fallbackContactId === '') {
+                throw $exception;
+            }
+
+            Log::warning('Falling back to configured GHL contact for iProcess webhook', [
+                'location_id' => $location->ghl_id,
+                'fallback_contact_id' => $fallbackContactId,
+                'reason' => $exception->getMessage(),
+            ]);
+
+            $contact = $this->ghlApiService->getContact($fallbackContactId, $location->ghl_id, true);
+            $ghlContactId = (string) ($contact['id'] ?? $contact['_id'] ?? $fallbackContactId);
         }
 
         $attributes = [

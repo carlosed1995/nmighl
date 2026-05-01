@@ -272,6 +272,30 @@ class GhlApiService
         return $invoice;
     }
 
+    public function getContact(string $contactId, ?string $locationId = null, bool $preferPrivateIntegrationToken = false): array
+    {
+        $contactId = trim($contactId);
+        if ($contactId === '') {
+            throw new RuntimeException('Cannot fetch GHL contact: contact id is required.');
+        }
+
+        $response = $this->request(null, $locationId, $preferPrivateIntegrationToken)
+            ->get('/contacts/'.$contactId);
+
+        if (! $response->successful()) {
+            $detail = $this->extractErrorDetail($response);
+            throw new RuntimeException('Failed to fetch GHL contact '.$contactId.' (status '.$response->status().'). '.$detail);
+        }
+
+        $parsed = $response->json();
+        $contact = $parsed['contact'] ?? $parsed['data']['contact'] ?? $parsed['data'] ?? $parsed;
+        if (! is_array($contact) || $contact === []) {
+            throw new RuntimeException('Failed to fetch GHL contact: empty response payload.');
+        }
+
+        return $contact;
+    }
+
     public function recordOrderPayment(string $orderId, array $payload = []): void
     {
         $locationId = $this->resolveLocationId($payload);
