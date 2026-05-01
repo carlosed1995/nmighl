@@ -28,6 +28,7 @@ class IprocessPaymentService
             ?? data_get($body, 'transactionId')
             ?? data_get($body, 'id')
             ?? data_get($body, 'reference')
+            ?? data_get($body, 'event_body.transaction_id')
             ?? ''
         ));
         if ($transactionId === '') {
@@ -37,6 +38,8 @@ class IprocessPaymentService
         $amount = (float) (
             data_get($body, 'amount')
             ?? data_get($body, 'total')
+            ?? data_get($body, 'event_body.action.amount')
+            ?? data_get($body, 'event_body.requested_amount')
             ?? 0
         );
         if ($amount <= 0) {
@@ -45,6 +48,7 @@ class IprocessPaymentService
 
         $currency = strtoupper(trim((string) (
             data_get($body, 'currency')
+            ?? data_get($body, 'event_body.currency')
             ?? 'USD'
         )));
         if ($currency === '') {
@@ -62,10 +66,34 @@ class IprocessPaymentService
         );
 
         $contactData = [
-            'contact_id' => trim((string) (data_get($body, 'contact_id') ?? data_get($body, 'contactId') ?? '')),
-            'name' => trim((string) (data_get($body, 'customer.name') ?? data_get($body, 'name') ?? '')),
-            'email' => trim((string) (data_get($body, 'customer.email') ?? data_get($body, 'email') ?? '')),
-            'phone' => trim((string) (data_get($body, 'customer.phone') ?? data_get($body, 'phone') ?? '')),
+            'contact_id' => trim((string) (
+                data_get($body, 'contact_id')
+                ?? data_get($body, 'contactId')
+                ?? data_get($body, 'event_body.contact_id')
+                ?? data_get($body, 'event_body.contactId')
+                ?? ''
+            )),
+            'name' => trim((string) (
+                data_get($body, 'customer.name')
+                ?? data_get($body, 'name')
+                ?? trim((string) (
+                    data_get($body, 'event_body.billing_address.first_name', '').' '.data_get($body, 'event_body.billing_address.last_name', '')
+                ))
+                ?? ''
+            )),
+            'email' => trim((string) (
+                data_get($body, 'customer.email')
+                ?? data_get($body, 'email')
+                ?? data_get($body, 'event_body.billing_address.email')
+                ?? ''
+            )),
+            'phone' => trim((string) (
+                data_get($body, 'customer.phone')
+                ?? data_get($body, 'phone')
+                ?? data_get($body, 'event_body.billing_address.phone')
+                ?? data_get($body, 'event_body.billing_address.cell_phone')
+                ?? ''
+            )),
         ];
 
         $client = $this->resolveOrCreateClient($location, $contactData);
@@ -73,6 +101,7 @@ class IprocessPaymentService
         $description = trim((string) (
             data_get($body, 'description')
             ?? data_get($body, 'note')
+            ?? data_get($body, 'event_body.order_description')
             ?? ('iProcess payment '.$transactionId)
         ));
 
