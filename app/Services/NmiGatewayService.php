@@ -677,6 +677,7 @@ class NmiGatewayService
 
             if ((bool) config('services.iprocess.mark_invoice_paid_in_ghl', true)) {
                 $this->ghlApiService->recordInvoicePayment($invoiceId, [
+                    'prefer_oauth_token' => true,
                     'amount' => $order->amount,
                     'transaction_id' => $order->nmi_transaction_id,
                     'location_id' => $locationId,

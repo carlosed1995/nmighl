@@ -154,6 +154,7 @@ class IprocessPaymentService
 
             if ((bool) config('services.iprocess.mark_invoice_paid_in_ghl', true)) {
                 $this->ghlApiService->recordInvoicePayment($invoiceId, [
+                    'prefer_oauth_token' => true,
                     'amount' => $amount,
                     'transaction_id' => $transactionId,
                     'location_id' => $locationId,

@@ -161,4 +161,31 @@ class GhlApiServiceTest extends TestCase
             return $request->hasHeader('Authorization', 'Bearer oauth-token-preferred');
         });
     }
+
+    public function test_record_invoice_payment_can_prefer_oauth_token_when_requested(): void
+    {
+        config()->set('services.ghl.base_url', 'https://services.leadconnectorhq.com');
+        config()->set('services.ghl.invoice_api_version', '2023-02-21');
+        config()->set('services.ghl.agency_token', 'pit-subaccount-token');
+
+        $oauthService = $this->mock(GhlOAuthService::class);
+        $oauthService->shouldReceive('getAccessToken')->andReturn('oauth-token-preferred');
+
+        Http::fake([
+            'https://services.leadconnectorhq.com/*' => Http::response(['ok' => true], 200),
+        ]);
+
+        $service = app(GhlApiService::class);
+        $service->recordInvoicePayment('inv-200', [
+            'prefer_oauth_token' => true,
+            'amount' => 15,
+            'transaction_id' => 'txn-200',
+            'location_id' => 'loc-200',
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://services.leadconnectorhq.com/invoices/inv-200/record-payment?altId=loc-200&altType=location'
+                && $request->hasHeader('Authorization', 'Bearer oauth-token-preferred');
+        });
+    }
 }
