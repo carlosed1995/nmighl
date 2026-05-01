@@ -731,6 +731,7 @@ class NmiGatewayService
             ?? data_get($payload, 'customer.email')
             ?? data_get($payload, 'event_body.email')
             ?? data_get($payload, 'event_body.customer.email')
+            ?? data_get($payload, 'event_body.billing_address.email')
             ?? ''
         )));
         $phone = trim((string) (
@@ -738,6 +739,8 @@ class NmiGatewayService
             ?? data_get($payload, 'customer.phone')
             ?? data_get($payload, 'event_body.phone')
             ?? data_get($payload, 'event_body.customer.phone')
+            ?? data_get($payload, 'event_body.billing_address.phone')
+            ?? data_get($payload, 'event_body.billing_address.cell_phone')
             ?? ''
         ));
         $name = trim((string) (
@@ -745,6 +748,9 @@ class NmiGatewayService
             ?? data_get($payload, 'customer.name')
             ?? data_get($payload, 'event_body.name')
             ?? data_get($payload, 'event_body.customer.name')
+            ?? trim((string) (
+                data_get($payload, 'event_body.billing_address.first_name', '').' '.data_get($payload, 'event_body.billing_address.last_name', '')
+            ))
             ?? 'Imported customer'
         ));
 
