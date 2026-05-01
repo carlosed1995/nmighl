@@ -226,6 +226,41 @@ class IprocessPaymentService
             }
         }
 
+        $fallbackContactId = trim((string) config('services.iprocess.fallback_ghl_contact_id', ''));
+        $missingContactInputs = $ghlContactId === '' && $email === '' && $phone === '';
+        if ($missingContactInputs && $fallbackContactId !== '') {
+            Log::info('Using configured fallback GHL contact for iProcess webhook without contact data', [
+                'location_id' => $location->ghl_id,
+                'fallback_contact_id' => $fallbackContactId,
+            ]);
+
+            $contact = $this->ghlApiService->getContact($fallbackContactId, $location->ghl_id, true);
+            $ghlContactId = (string) ($contact['id'] ?? $contact['_id'] ?? $fallbackContactId);
+
+            $attributes = [
+                'name' => (string) ($contact['name'] ?? $name),
+                'email' => (string) ($contact['email'] ?? null),
+                'phone' => (string) ($contact['phone'] ?? null),
+                'raw' => $contact,
+            ];
+
+            if ($existingClient) {
+                $existingClient->ghl_contact_id = $ghlContactId;
+                $existingClient->fill($attributes);
+                $existingClient->save();
+
+                return $existingClient;
+            }
+
+            return GhlClient::query()->updateOrCreate(
+                [
+                    'ghl_location_id' => $location->id,
+                    'ghl_contact_id' => $ghlContactId,
+                ],
+                $attributes
+            );
+        }
+
         try {
             $contact = $this->ghlApiService->createContact($location->ghl_id, [
                 'name' => $name,
@@ -237,7 +272,6 @@ class IprocessPaymentService
                 throw new RuntimeException('GHL contact creation returned no contact id.');
             }
         } catch (\Throwable $exception) {
-            $fallbackContactId = trim((string) config('services.iprocess.fallback_ghl_contact_id', ''));
             if ($fallbackContactId === '') {
                 throw $exception;
             }

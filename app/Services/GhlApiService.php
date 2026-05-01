@@ -215,6 +215,9 @@ class GhlApiService
         $issueDate = trim((string) ($payload['issue_date'] ?? now()->format('Y-m-d')));
         $businessName = trim((string) ($payload['business_name'] ?? config('app.name', 'USA Payments')));
         $contactName = trim((string) ($payload['contact_name'] ?? 'Customer'));
+        if ($contactName === '') {
+            $contactName = 'Customer';
+        }
         $contactEmail = $this->normalizeEmail((string) ($payload['contact_email'] ?? ''));
         $contactPhone = $this->normalizePhoneE164((string) ($payload['contact_phone'] ?? ''));
 
