@@ -169,7 +169,13 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    /*
+    | GHL_EMBED_IFRAME_SESSIONS=true fuerza cookies adecuadas para login/forms
+    | dentro de un iframe (Custom Page). Requiere HTTPS en tu app.
+    */
+    'secure' => filter_var(env('GHL_EMBED_IFRAME_SESSIONS', false), FILTER_VALIDATE_BOOLEAN)
+        ? true
+        : env('SESSION_SECURE_COOKIE'),
 
     /*
     |--------------------------------------------------------------------------
@@ -199,7 +205,9 @@ return [
     |
     */
 
-    'same_site' => env('SESSION_SAME_SITE', 'lax'),
+    'same_site' => filter_var(env('GHL_EMBED_IFRAME_SESSIONS', false), FILTER_VALIDATE_BOOLEAN)
+        ? 'none'
+        : env('SESSION_SAME_SITE', 'lax'),
 
     /*
     |--------------------------------------------------------------------------
