@@ -47,6 +47,23 @@ return [
         'redirect_uri' => env('GHL_REDIRECT_URI'),
         'scopes' => env('GHL_SCOPES', 'locations.readonly contacts.readonly'),
         'bridge_webhook_secret' => env('GHL_BRIDGE_WEBHOOK_SECRET'),
+        // Orígenes que pueden embeber la app (Custom Page / iframe). Vacío o GHL_EMBED_FRAME_ANCESTORS=false desactiva.
+        'embed_frame_ancestors' => (function () {
+            $raw = env('GHL_EMBED_FRAME_ANCESTORS');
+            if ($raw === false || $raw === '0' || $raw === 'false' || $raw === '') {
+                return [];
+            }
+            if ($raw === null) {
+                return [
+                    'https://app.gohighlevel.com',
+                    'https://*.gohighlevel.com',
+                    'https://*.msgsndr.com',
+                    'https://*.leadconnectorhq.com',
+                ];
+            }
+
+            return array_values(array_filter(array_map('trim', explode(',', (string) $raw))));
+        })(),
     ],
 
     'nmi' => [
