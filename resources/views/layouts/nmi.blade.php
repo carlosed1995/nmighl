@@ -15,6 +15,7 @@
     </style>
 </head>
 <body class="bg-[#f8fafc] text-slate-800 h-screen flex overflow-hidden antialiased">
+    @php($isSubaccountUser = auth()->user()?->isSubaccountUser() ?? false)
     <aside class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 shadow-sm">
         <div class="h-16 flex items-center px-6 border-b border-slate-100">
             <div class="flex items-center gap-3">
@@ -24,14 +25,16 @@
         </div>
 
         <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1">
-            <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-chart-pie w-5 text-center {{ request()->routeIs('dashboard') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">Dashboard</span>
-            </a>
-            <a href="{{ route('merchant-management') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('merchant-management') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-border-all w-5 text-center {{ request()->routeIs('merchant-management') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">Merchant Management</span>
-            </a>
+            @unless ($isSubaccountUser)
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-chart-pie w-5 text-center {{ request()->routeIs('dashboard') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">Dashboard</span>
+                </a>
+                <a href="{{ route('merchant-management') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('merchant-management') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-border-all w-5 text-center {{ request()->routeIs('merchant-management') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">Merchant Management</span>
+                </a>
+            @endunless
 
             <div class="pt-4 pb-2 px-3">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Payments</p>
@@ -41,27 +44,29 @@
                 <i class="fa-solid fa-dollar-sign w-5 text-center {{ request()->routeIs('online-payments') ? 'text-teal-600' : 'text-slate-400' }}"></i>
                 <span class="text-sm">Online Payments</span>
             </a>
-            <a href="{{ route('in-person-payments') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('in-person-payments') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-mobile-screen w-5 text-center {{ request()->routeIs('in-person-payments') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">In-Person Payments</span>
-            </a>
-            <a href="{{ route('clients') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('clients') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-users-gear w-5 text-center {{ request()->routeIs('clients') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">Clients-GHL</span>
-            </a>
+            @unless ($isSubaccountUser)
+                <a href="{{ route('in-person-payments') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('in-person-payments') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-mobile-screen w-5 text-center {{ request()->routeIs('in-person-payments') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">In-Person Payments</span>
+                </a>
+                <a href="{{ route('clients') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('clients') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-users-gear w-5 text-center {{ request()->routeIs('clients') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">Clients-GHL</span>
+                </a>
 
-            <div class="pt-4 pb-2 px-3">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overview</p>
-            </div>
+                <div class="pt-4 pb-2 px-3">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overview</p>
+                </div>
 
-            <a href="{{ route('sales-reps') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('sales-reps') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-briefcase w-5 text-center {{ request()->routeIs('sales-reps') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">Sales Reps</span>
-            </a>
-            <a href="{{ route('reporting') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('reporting') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
-                <i class="fa-solid fa-chart-line w-5 text-center {{ request()->routeIs('reporting') ? 'text-teal-600' : 'text-slate-400' }}"></i>
-                <span class="text-sm">Reporting</span>
-            </a>
+                <a href="{{ route('sales-reps') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('sales-reps') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-briefcase w-5 text-center {{ request()->routeIs('sales-reps') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">Sales Reps</span>
+                </a>
+                <a href="{{ route('reporting') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('reporting') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
+                    <i class="fa-solid fa-chart-line w-5 text-center {{ request()->routeIs('reporting') ? 'text-teal-600' : 'text-slate-400' }}"></i>
+                    <span class="text-sm">Reporting</span>
+                </a>
+            @endunless
             <a href="{{ route('account-settings') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ request()->routeIs('account-settings') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}">
                 <i class="fa-solid fa-gear w-5 text-center {{ request()->routeIs('account-settings') ? 'text-teal-600' : 'text-slate-400' }}"></i>
                 <span class="text-sm">Account Settings</span>

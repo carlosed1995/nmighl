@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'subaccount.restrict'])->group(function () {
     Route::get('/oauth/connect', [GhlOAuthController::class, 'connect'])->name('oauth.connect');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -36,6 +36,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sales-reps', [SalesRepsController::class, 'index'])->name('sales-reps');
     Route::get('/reporting', [ReportingController::class, 'index'])->name('reporting');
     Route::get('/account-settings', [AccountSettingsController::class, 'index'])->name('account-settings');
+    Route::post('/account-settings/nmi', [AccountSettingsController::class, 'updateNmiSettings'])->name('account-settings.nmi.update');
+    Route::post('/account-settings/nmi/subscribe', [AccountSettingsController::class, 'createNmiSubscription'])->name('account-settings.nmi.subscribe');
 });
 
 Route::get('/oauth/callback', [GhlOAuthController::class, 'callback'])->name('oauth.callback');

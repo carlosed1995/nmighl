@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust reverse proxies (Easypanel / ingress) so Laravel detects HTTPS correctly.
         $middleware->trustProxies(at: '*');
+        $middleware->alias([
+            'subaccount.restrict' => \App\Http\Middleware\RestrictSubaccountRoutes::class,
+        ]);
         $middleware->web(append: [
             \App\Http\Middleware\AllowEmbeddedFrameFromGhl::class,
         ]);

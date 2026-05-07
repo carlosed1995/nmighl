@@ -68,6 +68,7 @@ return [
 
     'nmi' => [
         'api_url' => env('NMI_API_URL', 'https://secure.networkmerchants.com/api/transact.php'),
+        'subscriptions_api_url' => env('NMI_SUBSCRIPTIONS_API_URL', 'https://sandbox.signup.nmi.com/api/v1'),
         'security_key' => env('NMI_SECURITY_KEY'),
         'webhook_signing_key' => env('NMI_WEBHOOK_SIGNING_KEY'),
         'sync_ghl_invoices' => env('NMI_SYNC_GHL_INVOICES_TO_NMI', true),

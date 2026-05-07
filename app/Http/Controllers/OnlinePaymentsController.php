@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\GhlClient;
 use App\Models\NmiPaymentOrder;
+use App\Models\User;
 use App\Services\NmiGatewayService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,9 +14,26 @@ class OnlinePaymentsController extends Controller
 {
     public function index()
     {
+        /** @var User $user */
+        $user = auth()->user();
+        $tenantLocationId = $user->isSubaccountUser() ? trim((string) $user->ghl_location_id) : '';
+
         return view('nmi.online-payments', [
-            'clients' => GhlClient::query()->orderBy('name')->limit(500)->get(),
-            'orders' => NmiPaymentOrder::query()->with('client.location')->latest()->limit(20)->get(),
+            'clients' => GhlClient::query()
+                ->when($tenantLocationId !== '', function ($query) use ($tenantLocationId) {
+                    $query->whereHas('location', function ($locationQuery) use ($tenantLocationId) {
+                        $locationQuery->where('ghl_id', $tenantLocationId);
+                    });
+                })
+                ->orderBy('name')
+                ->limit(500)
+                ->get(),
+            'orders' => NmiPaymentOrder::query()
+                ->with('client.location')
+                ->when($tenantLocationId !== '', fn ($query) => $query->where('ghl_location_id', $tenantLocationId))
+                ->latest()
+                ->limit(20)
+                ->get(),
         ]);
     }
 
@@ -30,7 +48,18 @@ class OnlinePaymentsController extends Controller
             'ghl_invoice_id' => ['nullable', 'string', 'max:128'],
         ]);
 
-        $client = GhlClient::query()->with('location')->findOrFail($data['ghl_client_id']);
+        /** @var User $user */
+        $user = $request->user();
+        $tenantLocationId = $user->isSubaccountUser() ? trim((string) $user->ghl_location_id) : '';
+
+        $client = GhlClient::query()
+            ->with('location')
+            ->when($tenantLocationId !== '', function ($query) use ($tenantLocationId) {
+                $query->whereHas('location', function ($locationQuery) use ($tenantLocationId) {
+                    $locationQuery->where('ghl_id', $tenantLocationId);
+                });
+            })
+            ->findOrFail($data['ghl_client_id']);
 
         if (! $client->location || $client->location->ghl_id === '') {
             return redirect()->route('online-payments')->with('error', 'Selected client does not have a valid sub-account.');
@@ -46,7 +75,7 @@ class OnlinePaymentsController extends Controller
         }
 
         NmiPaymentOrder::query()->create([
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'ghl_client_id' => $client->id,
             'ghl_contact_id' => $client->ghl_contact_id,
             'ghl_location_id' => $client->location->ghl_id,
@@ -73,7 +102,14 @@ class OnlinePaymentsController extends Controller
             'cc_cvv' => ['nullable', 'string', 'max:10'],
         ]);
 
-        $order = NmiPaymentOrder::query()->with('client')->findOrFail($data['order_id']);
+        /** @var User $user */
+        $user = $request->user();
+        $tenantLocationId = $user->isSubaccountUser() ? trim((string) $user->ghl_location_id) : '';
+
+        $order = NmiPaymentOrder::query()
+            ->with('client')
+            ->when($tenantLocationId !== '', fn ($query) => $query->where('ghl_location_id', $tenantLocationId))
+            ->findOrFail($data['order_id']);
 
         try {
             $gatewayService->chargeOrder($order, [

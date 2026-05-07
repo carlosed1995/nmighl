@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GhlClient;
 use App\Models\GhlLocation;
 use App\Models\GhlOauthToken;
+use App\Models\NmiLocationCredential;
 use App\Models\NmiPaymentOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +20,7 @@ class NmiGatewayService
 
     public function chargeOrder(NmiPaymentOrder $order, array $paymentData): NmiPaymentOrder
     {
-        $securityKey = (string) config('services.nmi.security_key');
+        $securityKey = $this->resolveSecurityKeyForLocation($order->ghl_location_id);
         $apiUrl = (string) config('services.nmi.api_url');
 
         if ($securityKey === '' || $apiUrl === '') {
@@ -108,7 +109,7 @@ class NmiGatewayService
             return;
         }
 
-        $securityKey = (string) config('services.nmi.security_key');
+        $securityKey = $this->resolveSecurityKeyForLocation($order->ghl_location_id);
         $apiUrl = (string) config('services.nmi.api_url');
 
         if ($securityKey === '' || $apiUrl === '') {
@@ -226,7 +227,7 @@ class NmiGatewayService
     public function handleWebhook(Request $request): ?NmiPaymentOrder
     {
         $payload = $this->extractWebhookPayload($request);
-        $this->assertValidSignature($request);
+        $this->assertValidSignature($request, $payload);
 
         $transactionId = (string) (
             data_get($payload, 'transaction.id')
@@ -496,33 +497,92 @@ class NmiGatewayService
         return is_array($parsed) ? $parsed : [];
     }
 
-    private function assertValidSignature(Request $request): void
+    private function assertValidSignature(Request $request, array $payload): void
     {
-        $signingKey = (string) config('services.nmi.webhook_signing_key');
-        if ($signingKey === '') {
+        $incoming = (string) ($request->header('Webhook-Signature') ?? $request->header('X-Webhook-Signature') ?? '');
+        $locationId = trim((string) (
+            $request->query('location')
+            ?? data_get($payload, 'locationId')
+            ?? data_get($payload, 'location_id')
+            ?? data_get($payload, 'event_body.locationId')
+            ?? data_get($payload, 'event_body.location_id')
+            ?? ''
+        ));
+        $configuredSigningKeys = $this->resolveWebhookSigningKeys($locationId);
+        if ($configuredSigningKeys === []) {
             return;
         }
-
-        $incoming = (string) ($request->header('Webhook-Signature') ?? $request->header('X-Webhook-Signature') ?? '');
         if ($incoming === '') {
-            return;
+            throw new RuntimeException('Missing NMI webhook signature.');
         }
 
         $rawBody = (string) $request->getContent();
-        if (preg_match('/t=(.*),s=(.*)/', $incoming, $matches) === 1) {
-            $expected = hash_hmac('sha256', $matches[1].'.'.$rawBody, $signingKey);
-            if (! hash_equals($expected, $matches[2])) {
-                throw new RuntimeException('Invalid NMI webhook signature.');
+        foreach ($configuredSigningKeys as $signingKey) {
+            if (preg_match('/t=(.*),s=(.*)/', $incoming, $matches) === 1) {
+                $expected = hash_hmac('sha256', $matches[1].'.'.$rawBody, $signingKey);
+                if (hash_equals($expected, $matches[2])) {
+                    return;
+                }
             }
 
-            return;
+            // Backward-compatible fallback for simple signature formats.
+            $expected = hash_hmac('sha256', $rawBody, $signingKey);
+            if (hash_equals($expected, $incoming)) {
+                return;
+            }
         }
 
-        // Backward-compatible fallback for simple signature formats.
-        $expected = hash_hmac('sha256', $rawBody, $signingKey);
-        if (! hash_equals($expected, $incoming)) {
-            throw new RuntimeException('Invalid NMI webhook signature.');
+        throw new RuntimeException('Invalid NMI webhook signature.');
+    }
+
+    private function resolveSecurityKeyForLocation(?string $locationId): string
+    {
+        $tenantLocationId = trim((string) $locationId);
+        if ($tenantLocationId !== '') {
+            $tenantCredential = NmiLocationCredential::query()
+                ->where('ghl_location_id', $tenantLocationId)
+                ->first();
+            $tenantKey = trim((string) ($tenantCredential?->api_security_key ?? ''));
+            if ($tenantKey !== '') {
+                return $tenantKey;
+            }
         }
+
+        return (string) config('services.nmi.security_key');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function resolveWebhookSigningKeys(string $locationId): array
+    {
+        $keys = [];
+        $globalKey = trim((string) config('services.nmi.webhook_signing_key'));
+        if ($globalKey !== '') {
+            $keys[] = $globalKey;
+        }
+
+        if ($locationId !== '') {
+            $tenantCredential = NmiLocationCredential::query()
+                ->where('ghl_location_id', $locationId)
+                ->first();
+            $tenantKey = trim((string) ($tenantCredential?->webhook_signing_key ?? ''));
+            if ($tenantKey !== '') {
+                $keys[] = $tenantKey;
+            }
+        } else {
+            $tenantCredentials = NmiLocationCredential::query()
+                ->whereNotNull('webhook_signing_key')
+                ->all();
+            foreach ($tenantCredentials as $tenantCredential) {
+                $tenantKey = trim((string) $tenantCredential->webhook_signing_key);
+                if ($tenantKey !== '') {
+                    $keys[] = $tenantKey;
+                }
+            }
+        }
+
+        return array_values(array_unique($keys));
     }
 
     private function mapGatewayStatus(string $responseCode, string $responseText): string
