@@ -12,11 +12,13 @@ class GhlInvoice extends Model
     protected $fillable = [
         'ghl_client_id',
         'ghl_location_id',
+        'ghl_invoice_id',
         'invoice_number',
         'issued_date',
         'due_date',
         'amount',
         'status',
+        'raw',
     ];
 
     protected function casts(): array
@@ -25,6 +27,7 @@ class GhlInvoice extends Model
             'amount'      => 'decimal:2',
             'issued_date' => 'date',
             'due_date'    => 'date',
+            'raw'         => 'array',
         ];
     }
 
