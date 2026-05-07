@@ -15,12 +15,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(
+        User::query()->updateOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
+                'role' => 'admin',
+                'ghl_location_id' => null,
                 'password' => 'password',
             ]
         );
+
+        $this->call([
+            SubaccountTestSeeder::class,
+        ]);
     }
 }
