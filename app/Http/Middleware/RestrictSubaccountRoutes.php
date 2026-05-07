@@ -35,6 +35,6 @@ class RestrictSubaccountRoutes
             return $next($request);
         }
 
-        abort(403, 'This sub-account user can only access Online Payments and Account Settings.');
+        return redirect()->route('online-payments');
     }
 }
